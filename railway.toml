@@ -1,0 +1,3 @@
+[deploy]
+startCommand = "node src/index.js"
+restartPolicyType = "always"
