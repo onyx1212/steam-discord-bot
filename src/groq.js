@@ -125,7 +125,7 @@ export async function formatMultipleResults(requestedGame, accounts) {
   ].join('\n');
 }
 
-async function getGameEmoji(gameName) {
+export async function getGameEmoji(gameName) {
   const prompt = `Give me one single emoji that best represents the game "${gameName}". Reply with ONLY the emoji character, nothing else.`;
   try {
     const emoji = await callGroq([{ role: 'user', content: prompt }], 10);
@@ -133,4 +133,17 @@ async function getGameEmoji(gameName) {
   } catch {
     return '🎮';
   }
+}
+
+export async function getTop50Games() {
+  const prompt = `List the 50 most popular PC/Steam games of all time. Include a mix of action, RPG, FPS, sports, adventure, and indie games.
+
+Return ONLY the game names, one per line, no numbers, no bullets, no explanation, no extra symbols.`;
+
+  const raw = await callGroq([{ role: 'user', content: prompt }], 1000);
+
+  return raw
+    .split('\n')
+    .map(v => v.trim().replace(/^[-•*\d.)]+\s*/, ''))
+    .filter(v => v.length >= 2 && v.length < 80);
 }
