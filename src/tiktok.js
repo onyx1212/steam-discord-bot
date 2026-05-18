@@ -1,6 +1,6 @@
 export async function searchTikTokEdit(gameName) {
   const query = encodeURIComponent(`${gameName} edit`);
-  const url = `https://www.tikwm.com/api/feed/search?keywords=${query}&count=20&cursor=0&HD=1`;
+  const url = `https://www.tikwm.com/api/feed/search?keywords=${query}&count=20&cursor=0&HD=0`;
 
   try {
     const res = await fetch(url, {
@@ -18,14 +18,36 @@ export async function searchTikTokEdit(gameName) {
     if (!Array.isArray(videos) || videos.length === 0) return null;
 
     const sorted = [...videos].sort((a, b) => (b.play_count || 0) - (a.play_count || 0));
-    const video = sorted[0];
 
-    const authorId = video?.author?.unique_id || video?.author_id;
-    const videoId = video?.video_id || video?.id;
+    for (const video of sorted) {
+      const playUrl = video?.play || video?.wmplay;
+      if (!playUrl) continue;
 
-    if (!authorId || !videoId) return null;
+      try {
+        const videoRes = await fetch(playUrl, {
+          headers: { 'User-Agent': 'Mozilla/5.0' },
+        });
 
-    return `https://www.tiktok.com/@${authorId}/video/${videoId}`;
+        if (!videoRes.ok) continue;
+
+        const contentLength = videoRes.headers.get('content-length');
+        const sizeBytes = contentLength ? parseInt(contentLength) : 0;
+
+        if (sizeBytes > 24 * 1024 * 1024) {
+          console.log(`⚠️ فيديو كبير جداً (${Math.round(sizeBytes / 1024 / 1024)}MB)، جاري تجربة التالي...`);
+          continue;
+        }
+
+        const buffer = Buffer.from(await videoRes.arrayBuffer());
+        console.log(`✅ حُمّل مقطع TikTok: ${Math.round(buffer.length / 1024)}KB`);
+        return { buffer, filename: 'edit.mp4' };
+      } catch (downloadErr) {
+        console.error(`⚠️ فشل تحميل المقطع: ${downloadErr.message}`);
+        continue;
+      }
+    }
+
+    return null;
   } catch (err) {
     console.error(`❌ TikTok error for "${gameName}": ${err.message}`);
     return null;
