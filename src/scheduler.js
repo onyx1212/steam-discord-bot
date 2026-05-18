@@ -1,3 +1,4 @@
+import { AttachmentBuilder } from 'discord.js';
 import { searchGameRaw } from './search.js';
 import { getTop50Games, getGameEmoji } from './groq.js';
 import { searchTikTokEdit } from './tiktok.js';
@@ -74,19 +75,21 @@ async function postNextGame(channel, state) {
         continue;
       }
 
-      const [emoji, tiktokUrl] = await Promise.all([
+      const [emoji, tiktokData] = await Promise.all([
         getGameEmoji(game),
         searchTikTokEdit(game),
       ]);
 
-      let message = `${emoji} **${game}**\n\n**name:** \`${account.username}\`\n**pass:** \`${account.password}\``;
+      const text = `${emoji} **${game}**\n\n**name:** \`${account.username}\`\n**pass:** \`${account.password}\``;
 
-      if (tiktokUrl) {
-        message += `\n\n${tiktokUrl}`;
+      if (tiktokData?.buffer) {
+        const attachment = new AttachmentBuilder(tiktokData.buffer, { name: tiktokData.filename });
+        await channel.send({ content: text, files: [attachment] });
+      } else {
+        await channel.send({ content: text });
       }
 
-      await channel.send(message);
-      console.log(`✅ تم نشر: ${game}`);
+      console.log(`✅ تم نشر: ${game}${tiktokData ? ' + مقطع TikTok' : ''}`);
       return;
     } catch (err) {
       console.error(`❌ خطأ في النشر: ${err.message}`);
