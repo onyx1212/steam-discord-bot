@@ -48,6 +48,35 @@ export async function searchGame(requestedGame) {
   return null;
 }
 
+export async function searchGameRaw(requestedGame) {
+  const accounts = loadAccounts();
+  const allTriedVariants = new Set();
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    let variants;
+
+    if (attempt === 1) {
+      variants = await getGameVariants(requestedGame);
+    } else {
+      variants = await getAlternativeNames(requestedGame, attempt - 1);
+    }
+
+    const newVariants = variants.filter(v => !allTriedVariants.has(v.toLowerCase()));
+    newVariants.forEach(v => allTriedVariants.add(v.toLowerCase()));
+
+    const exactMatches = findAccounts(accounts, newVariants, 'exact');
+    if (exactMatches.length > 0) return exactMatches[0];
+
+    const partialMatches = findAccounts(accounts, newVariants, 'partial');
+    if (partialMatches.length > 0) {
+      const filtered = filterByRelevance(requestedGame, partialMatches);
+      if (filtered.length > 0) return filtered[0];
+    }
+  }
+
+  return null;
+}
+
 function findAccounts(accounts, variants, mode) {
   const results = [];
   const seenKeys = new Set();
