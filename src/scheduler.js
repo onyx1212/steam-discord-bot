@@ -5,10 +5,14 @@ import { searchTikTokEdit } from './tiktok.js';
 
 const activeSchedulers = new Map();
 
-export async function startScheduler(channel, intervalMinutes) {
+export const trackedAdMessages = new Map();
+
+const AD_INVITE = process.env.BOT_OWNER_SERVER_INVITE || 'https://discord.gg/example';
+
+export async function startScheduler(channel, intervalMinutes, guildId, isFreeTier = false) {
   stopScheduler(channel.id);
 
-  console.log(`⏰ جدولة نشر في #${channel.name} كل ${intervalMinutes} دقيقة`);
+  console.log(`⏰ جدولة نشر في #${channel.name} كل ${intervalMinutes} دقيقة — free tier: ${isFreeTier}`);
 
   let games = [];
   try {
@@ -25,8 +29,7 @@ export async function startScheduler(channel, intervalMinutes) {
   }
 
   games = games.sort(() => Math.random() - 0.5);
-
-  const state = { games, index: 0 };
+  const state = { games, index: 0, guildId, isFreeTier };
 
   await postNextGame(channel, state);
 
@@ -80,16 +83,32 @@ async function postNextGame(channel, state) {
         searchTikTokEdit(game),
       ]);
 
-      const text = `${emoji} **${game}**\n\n**name:** \`${account.username}\`\n**pass:** \`${account.password}\``;
+      const text =
+        `${emoji} **${game}**\n\n` +
+        `**name:** \`${account.username}\`\n` +
+        `**pass:** \`${account.password}\``;
 
+      let mainMsg;
       if (tiktokData?.buffer) {
         const attachment = new AttachmentBuilder(tiktokData.buffer, { name: tiktokData.filename });
-        await channel.send({ content: text, files: [attachment] });
+        mainMsg = await channel.send({ content: text, files: [attachment] });
       } else {
-        await channel.send({ content: text });
+        mainMsg = await channel.send({ content: text });
       }
 
       console.log(`✅ تم نشر: ${game}${tiktokData ? ' + مقطع TikTok' : ''}`);
+
+      if (state.isFreeTier) {
+        const adText =
+          `📢 **هذه الحسابات مقدمة مجاناً**\n` +
+          `💎 للوصول لقاعدة بيانات أكبر بدون إعلانات، احصل على توكن مميز!\n` +
+          `🔗 **انضم لسيرفرنا:** ${AD_INVITE}`;
+
+        const adMsg = await channel.send(adText);
+        trackedAdMessages.set(adMsg.id, state.guildId);
+        console.log(`📢 تم إرسال إعلان free tier — message id: ${adMsg.id}`);
+      }
+
       return;
     } catch (err) {
       console.error(`❌ خطأ في النشر: ${err.message}`);

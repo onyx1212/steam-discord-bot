@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تسجيل الدخول — Steam Bot</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    background: #0a0a0f;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-image: radial-gradient(ellipse at 50% 0%, rgba(124,58,237,0.15) 0%, transparent 60%);
+  }
+  .card {
+    background: #13131f;
+    border: 1px solid #2a2a3f;
+    border-radius: 16px;
+    padding: 40px;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  .logo {
+    text-align: center;
+    margin-bottom: 32px;
+  }
+  .logo .icon {
+    font-size: 48px;
+    display: block;
+    margin-bottom: 12px;
+  }
+  .logo h1 {
+    color: #e5e7eb;
+    font-size: 22px;
+    font-weight: 700;
+  }
+  .logo p {
+    color: #6b7280;
+    font-size: 14px;
+    margin-top: 4px;
+  }
+  .form-group {
+    margin-bottom: 18px;
+  }
+  label {
+    display: block;
+    color: #9ca3af;
+    font-size: 13px;
+    margin-bottom: 7px;
+    font-weight: 500;
+  }
+  input {
+    width: 100%;
+    background: #1e1e2e;
+    border: 1px solid #2a2a3f;
+    border-radius: 10px;
+    padding: 12px 14px;
+    color: #e5e7eb;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+    direction: ltr;
+  }
+  input:focus { border-color: #7c3aed; }
+  button {
+    width: 100%;
+    background: linear-gradient(135deg, #7c3aed, #5b21b6);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 13px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+    margin-top: 8px;
+  }
+  button:hover { opacity: 0.9; }
+  button:active { transform: scale(0.98); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .error {
+    background: rgba(239,68,68,0.1);
+    border: 1px solid rgba(239,68,68,0.3);
+    color: #f87171;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 13px;
+    margin-bottom: 16px;
+    display: none;
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <span class="icon">🎮</span>
+    <h1>Steam Bot Dashboard</h1>
+    <p>لوحة تحكم البوت</p>
+  </div>
+  <div class="error" id="err"></div>
+  <form id="loginForm">
+    <div class="form-group">
+      <label>اسم المستخدم</label>
+      <input type="text" id="username" placeholder="Username" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label>كلمة المرور</label>
+      <input type="password" id="password" placeholder="Password">
+    </div>
+    <button type="submit" id="btn">دخول</button>
+  </form>
+</div>
+<script>
+  document.getElementById('loginForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = document.getElementById('btn');
+    const err = document.getElementById('err');
+    btn.disabled = true;
+    btn.textContent = 'جاري التحقق...';
+    err.style.display = 'none';
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: document.getElementById('username').value,
+          password: document.getElementById('password').value,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        window.location.href = '/app.html';
+      } else {
+        err.textContent = data.error || 'خطأ في تسجيل الدخول';
+        err.style.display = 'block';
+      }
+    } catch {
+      err.textContent = 'تعذر الاتصال بالسيرفر';
+      err.style.display = 'block';
+    }
+    btn.disabled = false;
+    btn.textContent = 'دخول';
+  });
+</script>
+</body>
+</html>

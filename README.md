@@ -1,19 +1,67 @@
-# Steam Discord Bot
+# Steam Discord Bot v2
 
-Discord bot that searches Steam account credentials using `/steam <game name>`.
+بوت Discord متكامل للبحث في حسابات Steam مع داشبورد ويب لإدارة السيرفرات والتوكنات.
 
-## Environment Variables
+## المميزات
 
-Set these in Railway dashboard:
+- 🔍 بحث ذكي عن حسابات Steam باستخدام Groq AI
+- 📢 نشر تلقائي مع مقاطع TikTok عبر `/here`
+- 🔑 نظام توكنات للتحكم في تفعيل البوت لكل سيرفر
+- 🎛️ داشبورد ويب لإدارة كل السيرفرات
+- ⚠️ نظام تحذيرات للـ Free Tier (6 تحذيرات ثم إيقاف)
+- 📊 سجل أحداث لكل سيرفر
 
-| Variable | Description |
-|---|---|
-| `DISCORD_TOKEN` | Your Discord bot token |
-| `GROQ_API_KEY` | Your Groq API key |
+## الأوامر
 
-## Deploy on Railway
+| الأمر | الوصف |
+|-------|-------|
+| `/steam <لعبة>` | البحث عن حساب Steam |
+| `/here <دقائق>` | نشر تلقائي مع مقطع TikTok |
+| `/stophere` | إيقاف النشر التلقائي |
+| `/active <token>` | تفعيل البوت باستخدام التوكن |
 
-1. Create new project on [railway.app](https://railway.app)
-2. Connect this GitHub repo
-3. Add the environment variables above
-4. Railway will auto-deploy and keep the bot running 24/7
+## متغيرات البيئة (Railway)
+
+| المتغير | الوصف | مطلوب |
+|---------|-------|--------|
+| `DISCORD_TOKEN` | توكن بوت Discord | ✅ |
+| `GROQ_API_KEY` | مفتاح Groq API | ✅ |
+| `BOT_OWNER_SERVER_INVITE` | رابط دعوة سيرفرك (للإعلانات) | ✅ |
+| `PORT` | بورت الداشبورد (Railway يعيّنه تلقائياً) | تلقائي |
+| `SESSION_SECRET` | سر الجلسة للداشبورد | اختياري |
+| `DASHBOARD_USER` | اسم مستخدم الداشبورد (افتراضي: QWPN) | اختياري |
+| `DASHBOARD_PASS` | كلمة مرور الداشبورد | اختياري |
+| `BOT_OWNER_DISCORD_ID` | Discord ID لصاحب البوت | اختياري |
+
+## التثبيت على Railway
+
+1. ارفع هذا الريبو على GitHub
+2. في Railway: **New Project** → **Deploy from GitHub repo**
+3. أضف متغيرات البيئة المطلوبة
+4. أضف **Volume** على المسار `/app/data` لحفظ قاعدة البيانات بشكل دائم
+5. انتظر حتى يكتمل الـ deploy
+
+## الداشبورد
+
+الداشبورد متاح على رابط Railway الخاص بك:
+- `https://YOUR-APP.railway.app/` → تسجيل الدخول
+- اليوزر والباسوورد محددة في متغيرات البيئة
+
+## كيف يعمل نظام التوكنات
+
+```
+صاحب البوت (الداشبورد) → ينشئ توكن لسيرفر معين
+              ↓
+البوت يرسل التوكن لروم dashboard في ذلك السيرفر
+              ↓
+الأونر يستخدم /active TOKEN في السيرفر
+              ↓
+البوت مفعّل! الأوامر تعمل الآن
+```
+
+## نظام Free Tier
+
+- ✅ كل الميزات متاحة
+- 📢 يُضاف إعلان مع كل نشر من `/here`
+- ⚠️ إذا حُذف الإعلان: تحذير 1/6 → 2/6 ... 6/6 = إيقاف البوت
+- 🔄 صاحب البوت يقدر يصفّر العداد من الداشبورد
