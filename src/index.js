@@ -16,6 +16,7 @@ import {
   getServer,
   isServerAuthorized,
   isFreeTierActive,
+  shouldSendAd,
   addLog,
   getTokenByValue,
   getServerToken,
@@ -118,7 +119,7 @@ client.on('guildCreate', async guild => {
       `\`/stophere\` — إيقاف النشر التلقائي\n\n` +
       `⚠️ **بعد انتهاء الفترة المجانية** ستحتاج توكن للاستمرار.\n` +
       `🔑 للتفعيل استخدم: \`/active TOKEN_HERE\`\n\n` +
-      `📢 ملاحظة: سيُرفق إعلان مع كل حساب Steam يُنشر.`
+      `📢 ملاحظة: سيُرفق إعلان مع كل حساب Steam يُنشر خلال الفترة المجانية.`
     );
   } catch (err) {
     console.error(`❌ خطأ في إعداد سيرفر ${guild.name}:`, err.message);
@@ -178,7 +179,7 @@ client.on('interactionCreate', async interaction => {
     const tokenValue = interaction.options.getString('token').trim();
     await interaction.deferReply({ ephemeral: true });
     const tokenRow = getTokenByValue(tokenValue);
-    if (!tokenRow) return interaction.editReply('❌ التوكن غير صحيح.');
+    if (!tokenRow) return interaction.editReply('❌ التوكن غير صحيح أو معطّل.');
     if (new Date(tokenRow.expires_at) <= new Date()) return interaction.editReply('❌ انتهت صلاحية التوكن. اطلب توكناً جديداً.');
     const activateResult = activateToken(tokenRow.id, guildId);
     if (!activateResult.ok) return interaction.editReply(`❌ ${activateResult.error}`);
@@ -187,10 +188,12 @@ client.on('interactionCreate', async interaction => {
     const limits = [];
     if (tokenRow.here_min_interval > 0) limits.push(`⏱ حد /here: ${tokenRow.here_min_interval} دقيقة`);
     if (tokenRow.steam_limit > 0) limits.push(`🔍 حد /steam: ${tokenRow.steam_limit} استخدام`);
+    const adNote = tokenRow.is_free_tier ? '\n📢 سيُرفق إعلان مع كل حساب Steam يُنشر.' : '';
     await interaction.editReply(
       `✅ **تم تفعيل البوت بنجاح!**\n` +
       `⏰ ينتهي: ${expiresDate}\n` +
       (limits.length ? limits.join('\n') + '\n' : '') +
+      adNote +
       `\nيمكنك الآن استخدام \`/steam\` و \`/here\``
     );
     const server = getServer(guildId);
@@ -245,15 +248,16 @@ client.on('interactionCreate', async interaction => {
       } else {
         await interaction.editReply({ content: result });
       }
-      // Always send ad after steam result
-      try {
-        const channel = interaction.channel;
-        const adText =
-          `📢 **هذه الحسابات مقدمة مجاناً من بوتنا**\n` +
-          `🔗 **انضم لسيرفرنا للمزيد:** ${AD_INVITE}`;
-        const adMsg = await channel.send(adText);
-        trackedAdMessages.set(adMsg.id, guildId);
-      } catch {}
+      // Send ad only if is_free_tier flag is set on token (or using free tier)
+      if (shouldSendAd(guildId)) {
+        try {
+          const adText =
+            `📢 **هذه الحسابات مقدمة مجاناً من بوتنا**\n` +
+            `🔗 **انضم لسيرفرنا للمزيد:** ${AD_INVITE}`;
+          const adMsg = await interaction.channel.send(adText);
+          trackedAdMessages.set(adMsg.id, guildId);
+        } catch {}
+      }
     } catch (err) {
       console.error('❌ خطأ في البحث:', err.message);
       try { await interaction.editReply('❌ صار خطأ أثناء البحث.'); } catch {}
@@ -272,11 +276,12 @@ client.on('interactionCreate', async interaction => {
     }
     await interaction.deferReply({ ephemeral: true });
     try {
-      await startScheduler(interaction.channel, minutes, guildId);
+      const sendAd = shouldSendAd(guildId);
+      await startScheduler(interaction.channel, minutes, guildId, sendAd);
       addLog(guildId, 'SCHEDULER_START', `بدأ النشر التلقائي كل ${minutes} دقيقة`);
+      const adNote = sendAd ? '\n📢 سيُرفق إعلان مع كل نشر.' : '';
       await interaction.editReply(
-        `✅ البوت سينشر حساب Steam مع مقطع TikTok كل **${minutes}** دقيقة.\n` +
-        `📢 سيُرفق إعلان مع كل نشر.`
+        `✅ البوت سينشر حساب Steam مع مقطع TikTok كل **${minutes}** دقيقة.` + adNote
       );
     } catch (err) {
       console.error('❌ خطأ في /here:', err.message);
