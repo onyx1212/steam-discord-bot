@@ -28,7 +28,8 @@ db.exec(`
     invite_link TEXT,
     last_seen TEXT,
     free_tier_expires_at TEXT,
-    here_default_interval INTEGER DEFAULT 0
+    here_default_interval INTEGER DEFAULT 0,
+    free_tier_steam_uses INTEGER DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS tokens (
@@ -66,6 +67,11 @@ db.exec(`
     user_id TEXT,
     UNIQUE(server_id, user_id)
   );
+
+  CREATE TABLE IF NOT EXISTS bot_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT
+  );
 `);
 
 function addColIfMissing(table, col, type) {
@@ -76,11 +82,76 @@ addColIfMissing('servers', 'invite_link', 'TEXT');
 addColIfMissing('servers', 'last_seen', 'TEXT');
 addColIfMissing('servers', 'setup_channel_id', 'TEXT');
 addColIfMissing('servers', 'here_default_interval', 'INTEGER DEFAULT 0');
+addColIfMissing('servers', 'free_tier_steam_uses', 'INTEGER DEFAULT 0');
 addColIfMissing('tokens', 'label', 'TEXT');
 addColIfMissing('tokens', 'here_min_interval', 'INTEGER DEFAULT 0');
 addColIfMissing('tokens', 'steam_limit', 'INTEGER DEFAULT 0');
 addColIfMissing('tokens', 'is_free_tier', 'INTEGER DEFAULT 0');
 addColIfMissing('tokens', 'disabled', 'INTEGER DEFAULT 0');
+
+// ─── Default Settings ──────────────────────────────────────────
+const DEFAULT_DM_TUTORIAL = `# 🎮 مرحباً بك في Steam Bot!
+
+شكراً لإضافة البوت لسيرفر {guild}! هذا شرح سريع لكل شيء:
+
+## 🎉 الفترة المجانية
+تحصل الآن على {days} يوم مجاناً (تنتهي: {expiry}).
+بعدها تحتاج توكن مدفوع للاستمرار.
+
+## 📋 الأوامر المتاحة
+\`/steam <اسم اللعبة>\` — يبحث عن حساب Steam للعبة ويرسله في الشات
+\`/here [دقائق]\` — يبدأ نشر تلقائي كل X دقيقة
+\`/stophere\` — يوقف النشر التلقائي في الروم الحالي
+\`/active <التوكن>\` — يفعّل توكن جديد للاستمرار
+\`/setup\` — ينشئ روم إعدادات خاص بك
+
+## ⚙️ إعداد البوت
+اكتب \`/setup\` في أي روم وسيُنشئ البوت روماً خاصاً فيه:
+• ضبط **من يقدر يستخدم الأوامر** (أونر / الجميع / محددون)
+• ضبط **الفترة الافتراضية** لـ /here ← مقفل في النسخة المجانية
+
+## 📢 نظام الإعلانات
+في النسخة المجانية يُرفق إعلان مع كل رسالة Steam.
+⚠️ **لا تحذف رسائل الإعلان!** حذفها يعطي تحذيراً، وعند 6 تحذيرات يُوقف البوت.
+
+## 🔑 كيف تحصل على توكن
+تواصل مع صاحب البوت للحصول على توكن:
+🔗 **{invite}**
+بعد الحصول عليه اكتب: \`/active التوكن_هنا\`
+
+## 📊 أنواع الخطط
+**🆓 مجاني ({days} يوم):** كل الأوامر + إعلان مع كل رسالة
+**💎 مدفوع:** كل شيء + بدون إعلانات + إعدادات متقدمة
+
+إذا عندك أي سؤال: {invite} 🙌`;
+
+const defaults = {
+  free_tier_days:       '2',
+  free_tier_here_min:   '360',
+  free_tier_steam_limit:'2',
+  ad_invite:            process.env.BOT_OWNER_SERVER_INVITE || 'https://discord.gg/example',
+  ad_message:           '📢 **هذه الحسابات مقدمة مجاناً من بوتنا**\n🔗 **انضم لسيرفرنا للمزيد:** {invite}',
+  dm_tutorial_enabled:  '1',
+  dm_tutorial_text:     DEFAULT_DM_TUTORIAL,
+};
+for (const [k, v] of Object.entries(defaults)) {
+  db.prepare('INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)').run(k, v);
+}
+
+// ─── Bot Settings ──────────────────────────────────────────────
+export function getSetting(key, fallback = '') {
+  return db.prepare('SELECT value FROM bot_settings WHERE key = ?').get(key)?.value ?? fallback;
+}
+
+export function setSetting(key, value) {
+  db.prepare('INSERT OR REPLACE INTO bot_settings (key, value) VALUES (?, ?)').run(key, String(value ?? ''));
+}
+
+export function getAllSettings() {
+  return Object.fromEntries(
+    db.prepare('SELECT key, value FROM bot_settings').all().map(r => [r.key, r.value])
+  );
+}
 
 // ─── Servers ──────────────────────────────────────────────────
 export function getServer(guildId) {
@@ -103,9 +174,10 @@ export function upsertServer(guildId, name, icon) {
   }
 }
 
-export function autoActivateFreeTier(guildId, days = 2) {
-  const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
-  db.prepare('UPDATE servers SET free_tier_expires_at = ? WHERE id = ?').run(expiresAt, guildId);
+export function autoActivateFreeTier(guildId, days) {
+  const d = days ?? Number(getSetting('free_tier_days', '2'));
+  const expiresAt = new Date(Date.now() + d * 24 * 60 * 60 * 1000).toISOString();
+  db.prepare('UPDATE servers SET free_tier_expires_at = ?, free_tier_steam_uses = 0 WHERE id = ?').run(expiresAt, guildId);
   return expiresAt;
 }
 
@@ -150,6 +222,10 @@ export function removeServer(guildId) {
   db.prepare('DELETE FROM servers WHERE id = ?').run(guildId);
 }
 
+export function incrementFreeTierSteamUses(guildId) {
+  db.prepare('UPDATE servers SET free_tier_steam_uses = free_tier_steam_uses + 1 WHERE id = ?').run(guildId);
+}
+
 // ─── Tokens (Global) ──────────────────────────────────────────
 export function createToken({ label = '', expiresAt, hereMinInterval = 0, steamLimit = 0, isFreeTier = false }) {
   const id = randomUUID();
@@ -187,9 +263,7 @@ export function getServerToken(guildId) {
 }
 
 export function activateToken(tokenId, guildId) {
-  const existing = db.prepare(
-    'SELECT server_id FROM server_tokens WHERE token_id = ? LIMIT 1'
-  ).get(tokenId);
+  const existing = db.prepare('SELECT server_id FROM server_tokens WHERE token_id = ? LIMIT 1').get(tokenId);
   if (existing && existing.server_id !== guildId) {
     return { ok: false, error: 'هذا التوكن مستخدم بالفعل من سيرفر آخر.' };
   }
@@ -216,16 +290,13 @@ export function incrementSteamUses(guildId) {
     WHERE st.server_id = ? AND t.expires_at > ? AND t.disabled = 0
     ORDER BY st.activated_at DESC LIMIT 1
   `).get(guildId, new Date().toISOString());
-  if (st) {
-    db.prepare('UPDATE server_tokens SET steam_uses = steam_uses + 1 WHERE id = ?').run(st.id);
-  }
+  if (st) db.prepare('UPDATE server_tokens SET steam_uses = steam_uses + 1 WHERE id = ?').run(st.id);
 }
 
 export function isServerAuthorized(guildId) {
   const server = getServer(guildId);
   if (!server) return false;
-  const token = getServerToken(guildId);
-  if (token) return true;
+  if (getServerToken(guildId)) return true;
   if (server.free_tier_expires_at && new Date(server.free_tier_expires_at) > new Date()) return true;
   return false;
 }
@@ -233,8 +304,7 @@ export function isServerAuthorized(guildId) {
 export function isFreeTierActive(guildId) {
   const server = getServer(guildId);
   if (!server) return false;
-  const token = getServerToken(guildId);
-  if (token) return false;
+  if (getServerToken(guildId)) return false;
   return !!(server.free_tier_expires_at && new Date(server.free_tier_expires_at) > new Date());
 }
 
@@ -252,18 +322,19 @@ export function shouldSendAd(guildId) {
 }
 
 export function getSteamLimitInfo(guildId) {
-  const st = db.prepare(`
-    SELECT t.steam_limit, st.steam_uses FROM server_tokens st
-    JOIN tokens t ON t.id = st.token_id
-    WHERE st.server_id = ? AND t.expires_at > ? AND t.disabled = 0
-    ORDER BY st.activated_at DESC LIMIT 1
-  `).get(guildId, new Date().toISOString());
-  return { limit: st?.steam_limit || 0, uses: st?.steam_uses || 0 };
+  const token = getServerToken(guildId);
+  if (token) {
+    return { limit: token.steam_limit || 0, uses: token.server_steam_uses || 0, source: 'token' };
+  }
+  const server = getServer(guildId);
+  const ftLimit = Number(getSetting('free_tier_steam_limit', '2'));
+  return { limit: ftLimit, uses: server?.free_tier_steam_uses || 0, source: 'free' };
 }
 
 export function getHereMinInterval(guildId) {
   const token = getServerToken(guildId);
-  return token?.here_min_interval || 0;
+  if (token) return token.here_min_interval || 0;
+  return Number(getSetting('free_tier_here_min', '360'));
 }
 
 // ─── Logs ─────────────────────────────────────────────────────
@@ -273,6 +344,10 @@ export function addLog(serverId, action, details) {
 
 export function getLogs(serverId, limit = 50) {
   return db.prepare('SELECT * FROM logs WHERE server_id = ? ORDER BY id DESC LIMIT ?').all(serverId, limit);
+}
+
+export function getRecentLogsAll(limit = 50) {
+  return db.prepare('SELECT * FROM logs ORDER BY id DESC LIMIT ?').all(limit);
 }
 
 // ─── Allowed Users ────────────────────────────────────────────
