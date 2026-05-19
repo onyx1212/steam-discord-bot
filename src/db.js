@@ -20,13 +20,15 @@ db.exec(`
     icon TEXT,
     joined_at TEXT,
     dashboard_channel_id TEXT,
+    setup_channel_id TEXT,
     is_active INTEGER DEFAULT 0,
     command_permission TEXT DEFAULT 'owner',
     warning_count INTEGER DEFAULT 0,
     active_token_id TEXT,
     invite_link TEXT,
     last_seen TEXT,
-    free_tier_expires_at TEXT
+    free_tier_expires_at TEXT,
+    here_default_interval INTEGER DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS tokens (
@@ -72,6 +74,8 @@ function addColIfMissing(table, col, type) {
 addColIfMissing('servers', 'free_tier_expires_at', 'TEXT');
 addColIfMissing('servers', 'invite_link', 'TEXT');
 addColIfMissing('servers', 'last_seen', 'TEXT');
+addColIfMissing('servers', 'setup_channel_id', 'TEXT');
+addColIfMissing('servers', 'here_default_interval', 'INTEGER DEFAULT 0');
 addColIfMissing('tokens', 'label', 'TEXT');
 addColIfMissing('tokens', 'here_min_interval', 'INTEGER DEFAULT 0');
 addColIfMissing('tokens', 'steam_limit', 'INTEGER DEFAULT 0');
@@ -109,6 +113,14 @@ export function setDashboardChannel(guildId, channelId) {
   db.prepare('UPDATE servers SET dashboard_channel_id = ? WHERE id = ?').run(channelId, guildId);
 }
 
+export function setSetupChannel(guildId, channelId) {
+  db.prepare('UPDATE servers SET setup_channel_id = ? WHERE id = ?').run(channelId, guildId);
+}
+
+export function setHereDefaultInterval(guildId, minutes) {
+  db.prepare('UPDATE servers SET here_default_interval = ? WHERE id = ?').run(Number(minutes) || 0, guildId);
+}
+
 export function setServerActive(guildId, isActive) {
   db.prepare('UPDATE servers SET is_active = ? WHERE id = ?').run(isActive ? 1 : 0, guildId);
 }
@@ -138,7 +150,7 @@ export function removeServer(guildId) {
   db.prepare('DELETE FROM servers WHERE id = ?').run(guildId);
 }
 
-// ─── Tokens (Global — not bound to a specific server) ─────────
+// ─── Tokens (Global) ──────────────────────────────────────────
 export function createToken({ label = '', expiresAt, hereMinInterval = 0, steamLimit = 0, isFreeTier = false }) {
   const id = randomUUID();
   const token = randomUUID().replace(/-/g, '') + randomUUID().replace(/-/g, '');
@@ -224,6 +236,10 @@ export function isFreeTierActive(guildId) {
   const token = getServerToken(guildId);
   if (token) return false;
   return !!(server.free_tier_expires_at && new Date(server.free_tier_expires_at) > new Date());
+}
+
+export function isPaidPlan(guildId) {
+  return !!getServerToken(guildId);
 }
 
 export function shouldSendAd(guildId) {
