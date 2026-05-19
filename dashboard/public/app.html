@@ -7,10 +7,10 @@
 <link rel="stylesheet" href="style.css">
 <style>
 /* ── Tabs ── */
-.tabs { display:flex; gap:4px; margin-bottom:24px; border-bottom:2px solid #1f2937; }
+.tabs { display:flex; gap:4px; margin-bottom:24px; border-bottom:2px solid #1f2937; flex-wrap:wrap; }
 .tab-btn {
-  padding:10px 22px; border:none; background:transparent; color:#9ca3af;
-  font-size:14px; font-weight:600; cursor:pointer; border-radius:8px 8px 0 0;
+  padding:10px 20px; border:none; background:transparent; color:#9ca3af;
+  font-size:13px; font-weight:600; cursor:pointer; border-radius:8px 8px 0 0;
   transition:.2s; position:relative; bottom:-2px; border-bottom:2px solid transparent;
 }
 .tab-btn.active { color:#60a5fa; border-bottom-color:#60a5fa; background:#1f2937; }
@@ -18,20 +18,29 @@
 .tab-pane { display:none; }
 .tab-pane.active { display:block; }
 
+/* ── Stats bar ── */
+.stats-bar { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; margin-bottom:24px; }
+.stat-card {
+  background:#111827; border:1px solid #1f2937; border-radius:10px;
+  padding:14px 16px; text-align:center;
+}
+.stat-card .stat-num { font-size:26px; font-weight:700; color:#e5e7eb; }
+.stat-card .stat-lbl { font-size:11px; color:#6b7280; margin-top:3px; }
+.stat-card.warn  .stat-num { color:#f59e0b; }
+.stat-card.danger .stat-num { color:#ef4444; }
+.stat-card.good  .stat-num { color:#22c55e; }
+.stat-card.info  .stat-num { color:#60a5fa; }
+
 /* ── Tokens table ── */
 .tokens-table-wrap { overflow-x:auto; }
 .tokens-table { width:100%; border-collapse:collapse; font-size:13px; }
-.tokens-table th {
-  text-align:right; padding:10px 12px; background:#111827;
-  color:#9ca3af; font-weight:600; border-bottom:1px solid #1f2937;
-}
+.tokens-table th { text-align:right; padding:10px 12px; background:#111827; color:#9ca3af; font-weight:600; border-bottom:1px solid #1f2937; }
 .tokens-table td { padding:10px 12px; border-bottom:1px solid #1f2937; vertical-align:middle; }
 .tokens-table tr:hover td { background:#111827; }
 .token-code {
   font-family:monospace; font-size:11px; color:#60a5fa; background:#111827;
-  padding:3px 7px; border-radius:4px; cursor:pointer; max-width:180px;
-  display:inline-block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-  vertical-align:middle;
+  padding:3px 7px; border-radius:4px; cursor:pointer; max-width:150px;
+  display:inline-block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:middle;
 }
 .token-code:hover { background:#1f2937; }
 .badge-used    { background:#1d4ed8; color:#fff; }
@@ -45,17 +54,83 @@
 .actions-cell { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
 .empty-tokens { text-align:center; padding:48px; color:#6b7280; font-size:15px; }
 .tokens-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px; }
-.create-token-card {
-  background:#111827; border:1px dashed #374151; border-radius:12px;
-  padding:20px 24px; margin-bottom:24px;
-}
+.create-token-card { background:#111827; border:1px dashed #374151; border-radius:12px; padding:20px 24px; margin-bottom:24px; }
 .create-token-card h4 { margin:0 0 16px; color:#e5e7eb; font-size:15px; }
 .token-filter-bar { display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; }
-.filter-btn {
-  padding:5px 14px; border:1px solid #374151; background:transparent; color:#9ca3af;
-  border-radius:20px; font-size:12px; cursor:pointer; transition:.15s;
-}
+.filter-btn { padding:5px 14px; border:1px solid #374151; background:transparent; color:#9ca3af; border-radius:20px; font-size:12px; cursor:pointer; transition:.15s; }
 .filter-btn.active, .filter-btn:hover { border-color:#60a5fa; color:#60a5fa; background:#1e3a5f22; }
+
+/* ── Server search + sort ── */
+.servers-toolbar { display:flex; gap:10px; margin-bottom:18px; flex-wrap:wrap; align-items:center; }
+.search-input {
+  flex:1; min-width:180px; padding:8px 14px; background:#111827; border:1px solid #374151;
+  border-radius:8px; color:#e5e7eb; font-size:13px; outline:none;
+}
+.search-input:focus { border-color:#60a5fa; }
+.sort-select {
+  padding:8px 12px; background:#111827; border:1px solid #374151;
+  border-radius:8px; color:#e5e7eb; font-size:13px; cursor:pointer; outline:none;
+}
+
+/* ── Settings tab ── */
+.settings-section {
+  background:#111827; border:1px solid #1f2937; border-radius:12px;
+  padding:24px; margin-bottom:20px;
+}
+.settings-section h3 { margin:0 0 18px; color:#e5e7eb; font-size:15px; display:flex; align-items:center; gap:8px; }
+.settings-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px; }
+.settings-grid-3 { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:16px; }
+.setting-item label { display:block; font-size:12px; color:#9ca3af; margin-bottom:6px; }
+.setting-input {
+  width:100%; padding:9px 12px; background:#0f172a; border:1px solid #374151;
+  border-radius:8px; color:#e5e7eb; font-size:13px; outline:none; box-sizing:border-box;
+}
+.setting-input:focus { border-color:#60a5fa; }
+textarea.setting-input { resize:vertical; min-height:120px; font-family:monospace; font-size:12px; }
+.setting-hint { font-size:11px; color:#6b7280; margin-top:5px; }
+.toggle-row { display:flex; align-items:center; gap:10px; }
+.toggle-switch { position:relative; width:44px; height:24px; }
+.toggle-switch input { opacity:0; width:0; height:0; }
+.toggle-slider {
+  position:absolute; inset:0; background:#374151; border-radius:24px; cursor:pointer; transition:.3s;
+}
+.toggle-slider:before {
+  content:''; position:absolute; width:18px; height:18px; background:#fff;
+  border-radius:50%; left:3px; top:3px; transition:.3s;
+}
+input:checked + .toggle-slider { background:#3b82f6; }
+input:checked + .toggle-slider:before { transform:translateX(20px); }
+.section-footer { display:flex; gap:8px; margin-top:18px; flex-wrap:wrap; }
+
+/* ── Activity feed ── */
+.activity-feed { max-height:320px; overflow-y:auto; }
+.activity-item {
+  display:flex; gap:10px; align-items:flex-start; padding:9px 0;
+  border-bottom:1px solid #1f2937; font-size:12px;
+}
+.activity-item:last-child { border-bottom:none; }
+.activity-time { color:#4b5563; white-space:nowrap; min-width:80px; }
+.activity-server { color:#60a5fa; font-weight:600; min-width:90px; }
+.activity-action { color:#d1d5db; }
+.activity-detail { color:#9ca3af; font-size:11px; }
+
+/* ── Broadcast ── */
+.broadcast-section { display:flex; flex-direction:column; gap:12px; }
+.broadcast-row { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; }
+.broadcast-target { display:flex; gap:8px; flex-wrap:wrap; }
+.target-btn { padding:6px 14px; border:1px solid #374151; background:transparent; color:#9ca3af; border-radius:20px; font-size:12px; cursor:pointer; transition:.15s; }
+.target-btn.active { border-color:#60a5fa; color:#60a5fa; background:#1e3a5f22; }
+
+/* ── Warning highlight ── */
+.card-danger { border-color:#7f1d1d !important; }
+.card-warn-high { border-color:#92400e !important; }
+
+/* ── QoL ── */
+.btn-extend { background:#065f46; color:#6ee7b7; border:none; border-radius:6px; padding:4px 10px; font-size:11px; cursor:pointer; }
+.btn-extend:hover { background:#047857; }
+.uptime-badge { font-size:11px; color:#6b7280; }
+.placeholder-vars { font-size:11px; color:#4b5563; margin-top:6px; }
+.placeholder-vars code { background:#0f172a; padding:1px 5px; border-radius:3px; color:#60a5fa; }
 </style>
 </head>
 <body>
@@ -68,6 +143,7 @@
         <span class="pulse-dot"></span>
         <span id="countdown">تحديث في 15ث</span>
       </div>
+      <span id="uptimeBadge" class="uptime-badge"></span>
       <span id="headerUser" class="user-badge"></span>
       <button class="btn-ghost btn-sm" onclick="logout()">خروج</button>
     </div>
@@ -77,8 +153,10 @@
 <main>
   <!-- ── Tabs nav ── -->
   <div class="tabs">
-    <button class="tab-btn active" onclick="switchTab('servers')">🖥️ السيرفرات</button>
-    <button class="tab-btn" onclick="switchTab('tokens')">🔑 التوكنات</button>
+    <button class="tab-btn active"  onclick="switchTab('servers',this)">🖥️ السيرفرات</button>
+    <button class="tab-btn"         onclick="switchTab('tokens',this)">🔑 التوكنات</button>
+    <button class="tab-btn"         onclick="switchTab('settings',this)">⚙️ الإعدادات</button>
+    <button class="tab-btn"         onclick="switchTab('qol',this)">✨ جودة الاستخدام</button>
   </div>
 
   <!-- ══ Tab: Servers ══ -->
@@ -88,7 +166,28 @@
         <h2>السيرفرات</h2>
         <p class="subtitle" id="serverCount">جاري التحميل...</p>
       </div>
-      <button class="btn-primary btn-sm" onclick="loadServers(true)">🔄 تحديث الآن</button>
+      <button class="btn-primary btn-sm" onclick="loadServers(true)">🔄 تحديث</button>
+    </div>
+    <!-- Stats bar -->
+    <div class="stats-bar" id="statsBar">
+      <div class="stat-card info"><div class="stat-num" id="st-total">—</div><div class="stat-lbl">إجمالي السيرفرات</div></div>
+      <div class="stat-card good"><div class="stat-num" id="st-online">—</div><div class="stat-lbl">متصل الآن</div></div>
+      <div class="stat-card info"><div class="stat-num" id="st-paid">—</div><div class="stat-lbl">مدفوع</div></div>
+      <div class="stat-card warn"><div class="stat-num" id="st-free">—</div><div class="stat-lbl">مجاني نشط</div></div>
+      <div class="stat-card danger"><div class="stat-num" id="st-warned">—</div><div class="stat-lbl">لديه تحذيرات</div></div>
+      <div class="stat-card warn"><div class="stat-num" id="st-expiring">—</div><div class="stat-lbl">ينتهي قريباً</div></div>
+      <div class="stat-card good"><div class="stat-num" id="st-tokens-ok">—</div><div class="stat-lbl">توكنات متاحة</div></div>
+    </div>
+    <!-- Search + sort toolbar -->
+    <div class="servers-toolbar">
+      <input class="search-input" id="serverSearch" type="text" placeholder="🔍 ابحث باسم السيرفر..." oninput="filterServers()">
+      <select class="sort-select" id="serverSort" onchange="filterServers()">
+        <option value="default">ترتيب: الافتراضي</option>
+        <option value="warnings">⚠️ الأكثر تحذيرات</option>
+        <option value="members">👥 الأكثر أعضاء</option>
+        <option value="name">🔤 الاسم أ-ي</option>
+        <option value="expiring">⏰ ينتهي قريباً</option>
+      </select>
     </div>
     <div id="servers" class="servers-grid"></div>
   </div>
@@ -102,8 +201,6 @@
       </div>
       <button class="btn-primary btn-sm" onclick="openCreateTokenPanel()">➕ إنشاء توكن جديد</button>
     </div>
-
-    <!-- Create token inline form -->
     <div class="create-token-card" id="createTokenPanel" style="display:none">
       <h4>🔑 إنشاء توكن جديد</h4>
       <div class="row3">
@@ -127,10 +224,7 @@
       </div>
       <div class="checkbox-row" style="margin-top:12px">
         <input type="checkbox" id="ctFreeTier">
-        <label for="ctFreeTier">
-          <span class="badge badge-free">Free Tier</span>
-          يُرسل رابط سيرفرك مع كل رسالة Steam (إعلان)
-        </label>
+        <label for="ctFreeTier"><span class="badge badge-free">Free Tier</span> يُرسل إعلان مع كل رسالة Steam</label>
       </div>
       <div id="ctResult" class="token-result" style="display:none;margin-top:16px">
         <p class="token-label">✅ تم إنشاء التوكن — لشخص واحد فقط</p>
@@ -145,28 +239,19 @@
         <button class="btn-ghost btn-sm" onclick="document.getElementById('createTokenPanel').style.display='none'">إلغاء</button>
       </div>
     </div>
-
-    <!-- Filter bar -->
     <div class="token-filter-bar">
-      <button class="filter-btn active" onclick="setTokenFilter('all', this)">الكل</button>
-      <button class="filter-btn" onclick="setTokenFilter('available', this)">🟢 متاح</button>
-      <button class="filter-btn" onclick="setTokenFilter('used', this)">🔵 مستخدم</button>
-      <button class="filter-btn" onclick="setTokenFilter('expired', this)">🔴 منتهي</button>
-      <button class="filter-btn" onclick="setTokenFilter('disabled', this)">⚫ معطّل</button>
+      <button class="filter-btn active" onclick="setTokenFilter('all',this)">الكل</button>
+      <button class="filter-btn" onclick="setTokenFilter('available',this)">🟢 متاح</button>
+      <button class="filter-btn" onclick="setTokenFilter('used',this)">🔵 مستخدم</button>
+      <button class="filter-btn" onclick="setTokenFilter('expired',this)">🔴 منتهي</button>
+      <button class="filter-btn" onclick="setTokenFilter('disabled',this)">⚫ معطّل</button>
     </div>
-
     <div class="tokens-table-wrap">
       <table class="tokens-table">
         <thead>
           <tr>
-            <th>التسمية</th>
-            <th>التوكن</th>
-            <th>الحالة</th>
-            <th>الوقت المتبقي</th>
-            <th>النوع</th>
-            <th>استخدام /steam</th>
-            <th>السيرفر</th>
-            <th>الإجراءات</th>
+            <th>التسمية</th><th>التوكن</th><th>الحالة</th><th>الوقت المتبقي</th>
+            <th>النوع</th><th>/steam</th><th>السيرفر</th><th>الإجراءات</th>
           </tr>
         </thead>
         <tbody id="tokensBody">
@@ -175,9 +260,143 @@
       </table>
     </div>
   </div>
+
+  <!-- ══ Tab: Settings ══ -->
+  <div class="tab-pane" id="tab-settings">
+    <div class="page-header">
+      <div><h2>⚙️ إعدادات البوت</h2><p class="subtitle">تحكم في سلوك البوت العام لكل السيرفرات</p></div>
+    </div>
+
+    <!-- Free tier config -->
+    <div class="settings-section">
+      <h3>🆓 إعدادات الخطة المجانية</h3>
+      <div class="settings-grid-3">
+        <div class="setting-item">
+          <label>📅 مدة الخطة المجانية (أيام)</label>
+          <input class="setting-input" type="number" id="cfg-free-days" min="1" max="365" value="2">
+          <p class="setting-hint">عدد الأيام المجانية التي يحصل عليها كل سيرفر عند دخول البوت</p>
+        </div>
+        <div class="setting-item">
+          <label>⏱️ حد /here في المجاني (دقيقة)</label>
+          <input class="setting-input" type="number" id="cfg-free-here" min="0" max="1440" value="360">
+          <p class="setting-hint">الحد الأدنى للفترة بين كل نشر — 360 = 6 ساعات، 0 = بلا حد</p>
+        </div>
+        <div class="setting-item">
+          <label>🔍 حد /steam في المجاني (عدد مرات)</label>
+          <input class="setting-input" type="number" id="cfg-free-steam" min="0" value="2">
+          <p class="setting-hint">أقصى عدد مرات استخدام /steam في فترة المجاني — 0 = بلا حد</p>
+        </div>
+      </div>
+      <div class="section-footer">
+        <button class="btn-primary btn-sm" onclick="saveFreeTierSettings()">💾 حفظ إعدادات المجاني</button>
+      </div>
+    </div>
+
+    <!-- Invite link -->
+    <div class="settings-section">
+      <h3>🔗 رابط الإعلان والتواصل</h3>
+      <div class="setting-item">
+        <label>رابط الدعوة الظاهر في الرسائل والإعلانات</label>
+        <input class="setting-input" type="url" id="cfg-ad-invite" placeholder="https://discord.gg/...">
+        <p class="setting-hint">يُستخدم في رسائل الإعلان وبريد الأونر وشاشة انتهاء الخطة</p>
+      </div>
+      <div class="section-footer">
+        <button class="btn-primary btn-sm" onclick="saveInviteSettings()">💾 حفظ الرابط</button>
+      </div>
+    </div>
+
+    <!-- Ad message -->
+    <div class="settings-section">
+      <h3>📢 رسالة الإعلان</h3>
+      <div class="setting-item">
+        <label>نص رسالة الإعلان المُرسَلة مع كل حساب Steam (خطة مجانية)</label>
+        <textarea class="setting-input" id="cfg-ad-message" rows="3"></textarea>
+        <p class="placeholder-vars">المتغيرات: <code>{invite}</code> = رابط الدعوة</p>
+      </div>
+      <div class="section-footer">
+        <button class="btn-primary btn-sm" onclick="saveAdMessage()">💾 حفظ رسالة الإعلان</button>
+      </div>
+    </div>
+
+    <!-- DM Tutorial -->
+    <div class="settings-section">
+      <h3>📬 رسالة الترحيب (DM للأونر)</h3>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+        <label class="toggle-switch">
+          <input type="checkbox" id="cfg-dm-enabled" onchange="saveDmEnabled()">
+          <span class="toggle-slider"></span>
+        </label>
+        <span style="font-size:13px;color:#d1d5db">تفعيل إرسال رسالة الترحيب للأونر عند دخول السيرفر</span>
+      </div>
+      <div class="setting-item">
+        <label>نص رسالة الترحيب</label>
+        <textarea class="setting-input" id="cfg-dm-tutorial" rows="14"></textarea>
+        <p class="placeholder-vars">
+          المتغيرات: <code>{guild}</code> اسم السيرفر | <code>{expiry}</code> تاريخ انتهاء المجاني |
+          <code>{days}</code> عدد أيام المجاني | <code>{invite}</code> رابط الدعوة
+        </p>
+      </div>
+      <div class="section-footer">
+        <button class="btn-primary btn-sm" onclick="saveDmTutorial()">💾 حفظ رسالة الترحيب</button>
+        <button class="btn-ghost btn-sm" onclick="resetDmTutorial()">🔄 إعادة الضبط الافتراضي</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ Tab: QoL ══ -->
+  <div class="tab-pane" id="tab-qol">
+    <div class="page-header">
+      <div><h2>✨ جودة الاستخدام</h2><p class="subtitle">أدوات سريعة لإدارة أفضل</p></div>
+    </div>
+
+    <!-- Broadcast -->
+    <div class="settings-section">
+      <h3>📡 إرسال رسالة جماعية</h3>
+      <p style="color:#9ca3af;font-size:13px;margin-bottom:14px">أرسل رسالة لجميع سيرفراتك دفعة واحدة عبر روم الداشبورد</p>
+      <div class="broadcast-section">
+        <div>
+          <label style="font-size:12px;color:#9ca3af;display:block;margin-bottom:6px">الهدف</label>
+          <div class="broadcast-target" id="broadcastTargetBtns">
+            <button class="target-btn active" onclick="setBroadcastTarget('all',this)">📢 الكل</button>
+            <button class="target-btn" onclick="setBroadcastTarget('paid',this)">💎 مدفوع فقط</button>
+            <button class="target-btn" onclick="setBroadcastTarget('free',this)">🆓 مجاني فقط</button>
+          </div>
+        </div>
+        <div class="setting-item">
+          <label>نص الرسالة</label>
+          <textarea class="setting-input" id="broadcastMsg" rows="3" placeholder="اكتب رسالتك هنا..."></textarea>
+        </div>
+        <div>
+          <button class="btn-primary btn-sm" onclick="sendBroadcast()" id="broadcastBtn">📡 إرسال</button>
+          <span id="broadcastResult" style="font-size:12px;color:#6b7280;margin-right:10px"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Activity feed -->
+    <div class="settings-section">
+      <h3>📋 آخر الأحداث (كل السيرفرات)</h3>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <span style="font-size:12px;color:#6b7280" id="activityMeta"></span>
+        <button class="btn-ghost btn-sm" onclick="loadActivity()">🔄 تحديث</button>
+      </div>
+      <div class="activity-feed" id="activityFeed">
+        <p style="color:#6b7280;text-align:center;padding:20px">⏳ جاري التحميل...</p>
+      </div>
+    </div>
+
+    <!-- Quick extend expiring servers -->
+    <div class="settings-section">
+      <h3>⚡ تمديد سريع للسيرفرات المنتهية قريباً</h3>
+      <p style="color:#9ca3af;font-size:13px;margin-bottom:14px">السيرفرات التي تنتهي خطتها خلال 24 ساعة</p>
+      <div id="expiringList">
+        <p style="color:#6b7280;font-size:13px">⏳ جاري التحميل...</p>
+      </div>
+    </div>
+  </div>
 </main>
 
-<!-- ══════════ Server Token Modal (from server card) ══════════ -->
+<!-- ══════════ Server Token Modal ══════════ -->
 <div class="modal-overlay" id="tokenModal">
   <div class="modal">
     <div class="modal-header">
@@ -204,27 +423,23 @@
           </div>
         </div>
         <div class="form-group" style="margin-top:14px">
-          <label>🏷️ تسمية للتوكن (اختياري)</label>
-          <input type="text" id="tLabel" placeholder="مثال: سيرفر ألفا / شهر مارس" maxlength="60">
+          <label>🏷️ تسمية (اختياري)</label>
+          <input type="text" id="tLabel" placeholder="مثال: سيرفر ألفا" maxlength="60">
         </div>
         <div class="checkbox-row" style="margin-top:14px">
           <input type="checkbox" id="tFreeTier">
-          <label for="tFreeTier">
-            <span class="badge badge-free">Free Tier</span>
-            يُرسل رابط سيرفرك مع كل رسالة Steam (إعلان)
-          </label>
+          <label for="tFreeTier"><span class="badge badge-free">Free Tier</span> يُرسل إعلان مع كل رسالة Steam</label>
         </div>
       </div>
       <div id="tokenResult" class="token-result" style="display:none">
         <p class="token-label">✅ تم إنشاء التوكن — لشخص واحد فقط</p>
-        <p style="color:#9ca3af;font-size:12px;margin-bottom:8px">لا يمكن استخدامه مرتين</p>
         <div class="token-box">
           <code id="tokenValue" dir="ltr" style="word-break:break-all;font-size:11px"></code>
           <button class="btn-copy" onclick="copyToken()">📋</button>
         </div>
         <p class="token-expires" id="tokenExpires"></p>
         <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn-primary btn-sm" onclick="sendTokenToServer()" id="sendTokenBtn">📤 أرسل للسيرفر الحالي</button>
+          <button class="btn-primary btn-sm" onclick="sendTokenToServer()" id="sendTokenBtn">📤 أرسل للسيرفر</button>
           <button class="btn-ghost btn-sm" onclick="resetTokenForm()">➕ إنشاء آخر</button>
         </div>
       </div>
@@ -252,9 +467,7 @@
         </table>
       </div>
     </div>
-    <div class="modal-footer">
-      <button class="btn-ghost" onclick="closeModal('logsModal')">إغلاق</button>
-    </div>
+    <div class="modal-footer"><button class="btn-ghost" onclick="closeModal('logsModal')">إغلاق</button></div>
   </div>
 </div>
 
@@ -289,7 +502,7 @@
     </div>
     <div class="modal-body">
       <p class="modal-server-name" id="inviteServerName"></p>
-      <p style="color:#9ca3af;font-size:13px;margin-bottom:16px">اضغط "توليد رابط" حتى يُنشئ البوت رابط دعوة مؤقت (24 ساعة، 5 استخدامات)</p>
+      <p style="color:#9ca3af;font-size:13px;margin-bottom:16px">رابط مؤقت (24 ساعة، 5 استخدامات)</p>
       <div id="inviteResult" class="token-result" style="display:none">
         <p class="token-label">🔗 رابط الدعوة:</p>
         <div class="token-box">
@@ -314,7 +527,10 @@ let countdownVal = 15;
 let countdownTimer = null;
 let sseSource = null;
 let allTokens = [];
+let allServers = [];
 let tokenFilter = 'all';
+let broadcastTarget = 'all';
+let botSettings = {};
 
 // ─── Init ──────────────────────────────────────────────────────
 async function init() {
@@ -323,23 +539,26 @@ async function init() {
   document.getElementById('headerUser').textContent = '👤 ' + me.username;
   connectSSE();
   loadServers(true);
-  loadTokens();
+  loadStats();
 }
 
 // ─── Tabs ──────────────────────────────────────────────────────
-function switchTab(name) {
+function switchTab(name, btn) {
   document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
-  event.currentTarget.classList.add('active');
-  if (name === 'tokens') loadTokens();
+  if (btn) btn.classList.add('active');
+  else document.querySelectorAll('.tab-btn')[['servers','tokens','settings','qol'].indexOf(name)]?.classList.add('active');
+  if (name === 'tokens')   loadTokens();
+  if (name === 'settings') loadSettings();
+  if (name === 'qol')      { loadActivity(); loadExpiringServers(); }
 }
 
 // ─── SSE ───────────────────────────────────────────────────────
 function connectSSE() {
   sseSource = new EventSource('/api/events');
   sseSource.onmessage = e => {
-    try { renderServers(JSON.parse(e.data)); resetCountdown(); } catch {}
+    try { allServers = JSON.parse(e.data); filterServers(); resetCountdown(); } catch {}
   };
   sseSource.onerror = () => { sseSource.close(); setTimeout(connectSSE, 5000); };
 }
@@ -354,21 +573,66 @@ function resetCountdown() {
   }, 1000);
 }
 
+// ─── Stats ─────────────────────────────────────────────────────
+async function loadStats() {
+  const s = await fetch('/api/stats').then(r => r.json()).catch(() => null);
+  if (!s) return;
+  document.getElementById('st-total').textContent    = s.total_servers;
+  document.getElementById('st-online').textContent   = s.online;
+  document.getElementById('st-paid').textContent     = s.paid;
+  document.getElementById('st-free').textContent     = s.free_tier;
+  document.getElementById('st-warned').textContent   = s.warning_servers;
+  document.getElementById('st-expiring').textContent = s.expiring_soon;
+  document.getElementById('st-tokens-ok').textContent = s.tokens_available;
+  const h = Math.floor(s.uptime_seconds / 3600);
+  const m = Math.floor((s.uptime_seconds % 3600) / 60);
+  document.getElementById('uptimeBadge').textContent = `⏱ ${h}س ${m}د`;
+  setTimeout(loadStats, 30000);
+}
+
 // ─── Servers ───────────────────────────────────────────────────
 async function loadServers(showLoading = false) {
   if (showLoading) document.getElementById('servers').innerHTML = '<div class="loading">⏳ جاري التحميل...</div>';
-  const servers = await fetch('/api/servers').then(r => r.json()).catch(() => []);
-  renderServers(servers);
+  allServers = await fetch('/api/servers').then(r => r.json()).catch(() => []);
+  filterServers();
+  loadStats();
 }
 
-function renderServers(servers) {
-  const online = servers.filter(s => s.online).length;
-  document.getElementById('serverCount').textContent = `${servers.length} سيرفر | ${online} متصل الآن`;
-  if (!servers.length) {
-    document.getElementById('servers').innerHTML = '<div class="empty">لا يوجد سيرفرات مسجّلة</div>';
+function filterServers() {
+  const q    = (document.getElementById('serverSearch')?.value || '').toLowerCase();
+  const sort = document.getElementById('serverSort')?.value || 'default';
+  let list   = allServers.filter(s => !q || s.name?.toLowerCase().includes(q));
+
+  if (sort === 'warnings') list = [...list].sort((a,b) => (b.warning_count||0) - (a.warning_count||0));
+  else if (sort === 'members') list = [...list].sort((a,b) => (b.member_count||0) - (a.member_count||0));
+  else if (sort === 'name') list = [...list].sort((a,b) => (a.name||'').localeCompare(b.name||''));
+  else if (sort === 'expiring') {
+    list = [...list].sort((a,b) => {
+      const ta = expiryMs(a), tb = expiryMs(b);
+      if (ta === Infinity && tb === Infinity) return 0;
+      if (ta === Infinity) return 1;
+      if (tb === Infinity) return -1;
+      return ta - tb;
+    });
+  }
+
+  const online = list.filter(s => s.online).length;
+  document.getElementById('serverCount').textContent = `${list.length} سيرفر | ${online} متصل الآن`;
+
+  if (!list.length) {
+    document.getElementById('servers').innerHTML = q
+      ? '<div class="empty">لا يوجد سيرفرات تطابق البحث</div>'
+      : '<div class="empty">لا يوجد سيرفرات مسجّلة</div>';
     return;
   }
-  document.getElementById('servers').innerHTML = servers.map(s => renderCard(s)).join('');
+  document.getElementById('servers').innerHTML = list.map(s => renderCard(s)).join('');
+}
+
+function expiryMs(s) {
+  const t = s.active_token;
+  if (t && new Date(t.expires_at) > new Date()) return new Date(t.expires_at) - Date.now();
+  if (s.free_tier_expires_at && new Date(s.free_tier_expires_at) > new Date()) return new Date(s.free_tier_expires_at) - Date.now();
+  return Infinity;
 }
 
 function renderCard(s) {
@@ -380,31 +644,38 @@ function renderCard(s) {
   if (hasToken) {
     const t = s.active_token;
     const exp = new Date(t.expires_at).toLocaleDateString('ar-SA');
-    tokenInfo += `<div class="info-row"><span>⏰ ينتهي</span><span>${exp}</span></div>`;
+    const msLeft = new Date(t.expires_at) - Date.now();
+    const expiringSoon = msLeft < 3 * 86400000 && msLeft > 0;
+    tokenInfo += `<div class="info-row"><span>⏰ ينتهي</span><span ${expiringSoon ? 'style="color:#f59e0b"' : ''}>${exp}${expiringSoon ? ' ⚠️' : ''}</span></div>`;
     tokenInfo += `<div class="info-row"><span>📋 النوع</span><span class="badge ${t.is_free_tier ? 'badge-free' : 'badge-pro'}">${t.is_free_tier ? 'Free' : 'Pro'}</span></div>`;
     if (t.here_min_interval > 0) tokenInfo += `<div class="info-row"><span>⏱ /here أدنى</span><span>${t.here_min_interval} د</span></div>`;
     if (t.steam_limit > 0) {
-      const ratio = (t.server_steam_uses || 0) + '/' + t.steam_limit;
+      const ratio = (t.server_steam_uses||0) + '/' + t.steam_limit;
       const cls = (t.server_steam_uses||0) >= t.steam_limit ? 'warn-red' : (t.server_steam_uses||0) >= t.steam_limit * 0.8 ? 'warn-yellow' : '';
       tokenInfo += `<div class="info-row"><span>🔍 /steam</span><span class="${cls}">${ratio}</span></div>`;
     }
   } else if (s.free_tier_active) {
     const exp = new Date(s.free_tier_expires_at).toLocaleDateString('ar-SA');
-    tokenInfo = `<div class="info-row"><span class="badge badge-free">Free Tier</span><span>حتى ${exp}</span></div>`;
+    const msLeft = new Date(s.free_tier_expires_at) - Date.now();
+    const expiringSoon = msLeft < 86400000;
+    tokenInfo = `<div class="info-row"><span class="badge badge-free">Free</span><span ${expiringSoon ? 'style="color:#f59e0b"' : ''}>حتى ${exp}${expiringSoon ? ' ⚠️' : ''}</span></div>`;
   } else {
     tokenInfo = `<div class="info-row muted"><span>لا يوجد توكن نشط</span></div>`;
   }
 
   const warnClass = s.warning_count >= 6 ? 'warn-red' : s.warning_count >= 3 ? 'warn-yellow' : '';
-  const toggleClass = s.is_active ? 'btn-danger' : 'btn-success';
-  const toggleLabel = s.is_active ? '⛔ تعطيل' : '✅ تفعيل';
-
+  const cardExtra = s.warning_count >= 6 ? 'card-danger' : s.warning_count >= 3 ? 'card-warn-high' : '';
   const iconHtml = s.icon
     ? `<img src="https://cdn.discordapp.com/icons/${s.id}/${s.icon}.png?size=64" onerror="this.style.display='none';this.nextSibling.style.display='flex'"><span class="icon-fallback" style="display:none">🎮</span>`
     : `<span class="icon-fallback">🎮</span>`;
 
+  const canExtend = s.free_tier_active || (!hasToken);
+  const extendBtn = canExtend
+    ? `<button class="btn-extend" onclick="quickExtend('${s.id}','${esc(s.name)}')">+2ي مجاني</button>`
+    : '';
+
   return `
-  <div class="server-card ${!s.online ? 'card-offline' : ''}">
+  <div class="server-card ${!s.online ? 'card-offline' : ''} ${cardExtra}">
     <div class="card-header">
       <div class="server-icon">${iconHtml}</div>
       <div class="server-info">
@@ -428,11 +699,12 @@ function renderCard(s) {
       </div>
     </div>
     <div class="card-actions">
-      <button class="${toggleClass} btn-sm" onclick="toggleServer('${s.id}', ${s.is_active})">${toggleLabel}</button>
+      <button class="${s.is_active ? 'btn-danger' : 'btn-success'} btn-sm" onclick="toggleServer('${s.id}',${s.is_active})">${s.is_active ? '⛔ تعطيل' : '✅ تفعيل'}</button>
       <button class="btn-primary btn-sm" onclick="openTokenModal('${s.id}','${esc(s.name)}')">🔑 توكن</button>
       <button class="btn-ghost btn-sm" onclick="openLogs('${s.id}','${esc(s.name)}')">📋 Logs</button>
       <button class="btn-ghost btn-sm" onclick="openPerms('${s.id}','${esc(s.name)}','${s.command_permission}')">🔐 صلاحية</button>
       ${s.online ? `<button class="btn-ghost btn-sm" onclick="openInvite('${s.id}','${esc(s.name)}')">🔗 دعوة</button>` : ''}
+      ${extendBtn}
       ${s.warning_count > 0 ? `<button class="btn-warn btn-sm" onclick="resetWarnings('${s.id}')">🔄 صفّر</button>` : ''}
       ${s.online ? `<button class="btn-danger btn-sm" onclick="kickBot('${s.id}','${esc(s.name)}')">🚪 أطرد</button>` : ''}
     </div>
@@ -443,7 +715,7 @@ function permLabel(p) {
   return p === 'everyone' ? '🌍 الجميع' : p === 'specific' ? '👥 محددون' : '👑 الأونر';
 }
 
-// ─── Tokens Tab ────────────────────────────────────────────────
+// ─── Tokens ────────────────────────────────────────────────────
 async function loadTokens() {
   allTokens = await fetch('/api/tokens').then(r => r.json()).catch(() => []);
   renderTokensTable();
@@ -458,89 +730,79 @@ function setTokenFilter(f, btn) {
 }
 
 function tokenStatus(t) {
-  if (t.disabled)                                    return 'disabled';
-  if (new Date(t.expires_at) <= new Date())          return 'expired';
-  if (t.used_by_server_id)                           return 'used';
+  if (t.disabled)                           return 'disabled';
+  if (new Date(t.expires_at) <= new Date()) return 'expired';
+  if (t.used_by_server_id)                  return 'used';
   return 'available';
 }
 
 function renderTokensTable() {
-  const filtered = tokenFilter === 'all'
-    ? allTokens
-    : allTokens.filter(t => tokenStatus(t) === tokenFilter);
-
+  const filtered = tokenFilter === 'all' ? allTokens : allTokens.filter(t => tokenStatus(t) === tokenFilter);
   if (!filtered.length) {
-    document.getElementById('tokensBody').innerHTML =
-      `<tr><td colspan="8"><div class="empty-tokens">لا يوجد توكنات في هذا التصنيف</div></td></tr>`;
+    document.getElementById('tokensBody').innerHTML = `<tr><td colspan="8"><div class="empty-tokens">لا يوجد توكنات في هذا التصنيف</div></td></tr>`;
     return;
   }
-
+  const statusMap = {
+    available: `<span class="badge badge-ok">🟢 متاح</span>`,
+    used:      `<span class="badge badge-used">🔵 مستخدم</span>`,
+    expired:   `<span class="badge badge-expired">🔴 منتهي</span>`,
+    disabled:  `<span class="badge badge-off">⚫ معطّل</span>`,
+  };
   document.getElementById('tokensBody').innerHTML = filtered.map(t => {
-    const status = tokenStatus(t);
-    const statusMap = {
-      available: `<span class="badge badge-ok">🟢 متاح</span>`,
-      used:      `<span class="badge badge-used">🔵 مستخدم</span>`,
-      expired:   `<span class="badge badge-expired">🔴 منتهي</span>`,
-      disabled:  `<span class="badge badge-off">⚫ معطّل</span>`,
-    };
-
-    const remaining = timeRemaining(t.expires_at, status);
-    const shortToken = t.token.slice(0, 16) + '…';
-    const steamUses = t.used_steam_uses != null ? `${t.used_steam_uses}${t.steam_limit > 0 ? '/' + t.steam_limit : ''}` : '—';
-    const serverName = t.used_by_server_id ? `<span style="font-size:11px;color:#9ca3af">${t.used_by_server_id.slice(-6)}</span>` : '—';
+    const st = tokenStatus(t);
+    const remaining = timeRemaining(t.expires_at, st);
+    const shortToken = t.token.slice(0,16) + '…';
+    const steamUses = t.used_steam_uses != null ? `${t.used_steam_uses}${t.steam_limit > 0 ? '/'+t.steam_limit : ''}` : '—';
+    const serverName = t.used_by_server_id
+      ? `<span style="font-size:11px;color:#9ca3af" title="${t.used_by_server_id}">${t.used_by_server_id.slice(-6)}</span>`
+      : '—';
     const toggleLabel = t.disabled ? '✅ تفعيل' : '🚫 تعطيل';
     const toggleClass = t.disabled ? 'btn-success' : 'btn-warn';
-
     return `<tr>
       <td>${esc(t.label || '—')}</td>
       <td><span class="token-code" onclick="copyRaw('${t.token}')" title="اضغط للنسخ">${shortToken}</span></td>
-      <td>${statusMap[status]}</td>
+      <td>${statusMap[st]}</td>
       <td>${remaining}</td>
       <td><span class="badge ${t.is_free_tier ? 'badge-free' : 'badge-pro'}">${t.is_free_tier ? 'Free' : 'Pro'}</span></td>
       <td>${steamUses}</td>
       <td>${serverName}</td>
       <td><div class="actions-cell">
         <button class="${toggleClass} btn-sm" onclick="toggleTokenDisabled('${t.id}')">${toggleLabel}</button>
-        <button class="btn-danger btn-sm" onclick="confirmDeleteToken('${t.id}', '${esc(t.label || t.token.slice(0,12))}')">🗑️</button>
+        <button class="btn-danger btn-sm" onclick="confirmDeleteToken('${t.id}','${esc(t.label||t.token.slice(0,12))}')">🗑️</button>
       </div></td>
     </tr>`;
   }).join('');
 }
 
 function timeRemaining(expiresAt, status) {
-  if (status === 'expired') return `<span class="time-remaining time-dead">منتهي</span>`;
+  if (status === 'expired')  return `<span class="time-remaining time-dead">منتهي</span>`;
   if (status === 'disabled') return `<span class="time-remaining time-dead">—</span>`;
   const ms = new Date(expiresAt) - Date.now();
   if (ms <= 0) return `<span class="time-remaining time-dead">منتهي</span>`;
-  const days  = Math.floor(ms / 86400000);
-  const hours = Math.floor((ms % 86400000) / 3600000);
-  const mins  = Math.floor((ms % 3600000) / 60000);
+  const days = Math.floor(ms/86400000), hours = Math.floor((ms%86400000)/3600000), mins = Math.floor((ms%3600000)/60000);
   let txt = '';
-  if (days > 0)  txt += `${days}ي `;
+  if (days > 0) txt += `${days}ي `;
   if (hours > 0) txt += `${hours}س `;
   txt += `${mins}د`;
   const cls = days > 3 ? 'time-ok' : days >= 1 ? 'time-warn' : 'time-dead';
   return `<span class="time-remaining ${cls}">${txt}</span>`;
 }
 
-function copyRaw(text) {
-  navigator.clipboard.writeText(text).then(() => toast('📋 تم نسخ التوكن'));
-}
+function copyRaw(text) { navigator.clipboard.writeText(text).then(() => toast('📋 تم نسخ التوكن')); }
 
 async function toggleTokenDisabled(id) {
-  const res = await fetch(`/api/tokens/${id}/toggle`, { method: 'POST' }).then(r => r.json());
+  const res = await fetch(`/api/tokens/${id}/toggle`, { method:'POST' }).then(r => r.json());
   if (res.ok) { toast(res.disabled ? '🚫 تم تعطيل التوكن' : '✅ تم تفعيل التوكن'); loadTokens(); }
   else toast('❌ ' + (res.error || 'خطأ'), 'error');
 }
 
 async function confirmDeleteToken(id, label) {
-  if (!confirm(`هل تريد حذف التوكن "${label}"؟ هذا الإجراء لا يمكن التراجع عنه.`)) return;
-  const res = await fetch(`/api/tokens/${id}`, { method: 'DELETE' }).then(r => r.json());
+  if (!confirm(`هل تريد حذف التوكن "${label}"؟`)) return;
+  const res = await fetch(`/api/tokens/${id}`, { method:'DELETE' }).then(r => r.json());
   if (res.ok) { toast('🗑️ تم الحذف'); loadTokens(); }
   else toast('❌ ' + (res.error || 'خطأ'), 'error');
 }
 
-// ─── Create Token from Tokens Tab ─────────────────────────────
 function openCreateTokenPanel() {
   const panel = document.getElementById('createTokenPanel');
   panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
@@ -551,50 +813,195 @@ function openCreateTokenPanel() {
 }
 
 async function createTokenFromPanel() {
-  const days    = Number(document.getElementById('ctDays').value)    || 0;
-  const hours   = Number(document.getElementById('ctHours').value)   || 0;
+  const days = Number(document.getElementById('ctDays').value) || 0;
+  const hours = Number(document.getElementById('ctHours').value) || 0;
   const minutes = Number(document.getElementById('ctMinutes').value) || 0;
   if (days + hours + minutes === 0) { toast('❌ حدد مدة أكبر من صفر', 'error'); return; }
-  const btn = document.getElementById('ctBtn');
-  btn.disabled = true; btn.textContent = '⏳ جاري...';
+  const btn = document.getElementById('ctBtn'); btn.disabled = true; btn.textContent = '⏳...';
   const res = await fetch('/api/tokens', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      days, hours, minutes,
-      label:             document.getElementById('ctLabel').value.trim(),
-      here_min_interval: Number(document.getElementById('ctHereMin').value)    || 0,
-      steam_limit:       Number(document.getElementById('ctSteamLimit').value) || 0,
-      is_free_tier:      document.getElementById('ctFreeTier').checked,
-    }),
-  }).then(r => r.json()).catch(() => ({ error: 'خطأ في الاتصال' }));
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ days, hours, minutes,
+      label: document.getElementById('ctLabel').value.trim(),
+      here_min_interval: Number(document.getElementById('ctHereMin').value) || 0,
+      steam_limit: Number(document.getElementById('ctSteamLimit').value) || 0,
+      is_free_tier: document.getElementById('ctFreeTier').checked }),
+  }).then(r => r.json()).catch(() => ({ error: 'خطأ' }));
   btn.disabled = false; btn.textContent = 'إنشاء';
   if (res.ok) {
     document.getElementById('ctValue').textContent = res.token;
     document.getElementById('ctExpires').textContent = '⏰ ينتهي: ' + new Date(res.expires_at).toLocaleString('ar-SA');
     document.getElementById('ctResult').style.display = 'block';
-    toast('✅ تم إنشاء التوكن');
-    loadTokens();
+    toast('✅ تم إنشاء التوكن'); loadTokens();
   } else toast('❌ ' + (res.error || 'خطأ'), 'error');
 }
 
-function copyCtToken() {
-  navigator.clipboard.writeText(document.getElementById('ctValue').textContent)
-    .then(() => toast('📋 تم النسخ'));
+function copyCtToken() { navigator.clipboard.writeText(document.getElementById('ctValue').textContent).then(() => toast('📋 تم النسخ')); }
+
+// ─── Settings tab ──────────────────────────────────────────────
+async function loadSettings() {
+  botSettings = await fetch('/api/settings').then(r => r.json()).catch(() => ({}));
+  document.getElementById('cfg-free-days').value   = botSettings.free_tier_days  || '2';
+  document.getElementById('cfg-free-here').value   = botSettings.free_tier_here_min || '360';
+  document.getElementById('cfg-free-steam').value  = botSettings.free_tier_steam_limit || '2';
+  document.getElementById('cfg-ad-invite').value   = botSettings.ad_invite || '';
+  document.getElementById('cfg-ad-message').value  = botSettings.ad_message || '';
+  document.getElementById('cfg-dm-tutorial').value = botSettings.dm_tutorial_text || '';
+  document.getElementById('cfg-dm-enabled').checked = botSettings.dm_tutorial_enabled === '1';
 }
 
-// ─── Actions (Servers) ─────────────────────────────────────────
+async function saveSettings(keys) {
+  const body = {};
+  for (const k of keys) {
+    const el = document.getElementById('cfg-' + k.replace(/_/g,'-'));
+    if (el) body[k] = el.type === 'checkbox' ? (el.checked ? '1' : '0') : el.value;
+  }
+  const res = await fetch('/api/settings', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body),
+  }).then(r => r.json()).catch(() => ({ error: 'خطأ' }));
+  return res;
+}
+
+async function saveFreeTierSettings() {
+  const res = await saveSettings(['free_tier_days','free_tier_here_min','free_tier_steam_limit']);
+  res.ok ? toast('✅ تم حفظ إعدادات المجاني') : toast('❌ ' + (res.error||'خطأ'),'error');
+}
+
+async function saveInviteSettings() {
+  const res = await saveSettings(['ad_invite']);
+  res.ok ? toast('✅ تم حفظ الرابط') : toast('❌ ' + (res.error||'خطأ'),'error');
+}
+
+async function saveAdMessage() {
+  const res = await saveSettings(['ad_message']);
+  res.ok ? toast('✅ تم حفظ رسالة الإعلان') : toast('❌ ' + (res.error||'خطأ'),'error');
+}
+
+async function saveDmTutorial() {
+  const body = { dm_tutorial_text: document.getElementById('cfg-dm-tutorial').value };
+  const res = await fetch('/api/settings', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body),
+  }).then(r => r.json()).catch(() => ({ error: 'خطأ' }));
+  res.ok ? toast('✅ تم حفظ رسالة الترحيب') : toast('❌ ' + (res.error||'خطأ'),'error');
+}
+
+async function saveDmEnabled() {
+  const body = { dm_tutorial_enabled: document.getElementById('cfg-dm-enabled').checked ? '1' : '0' };
+  await fetch('/api/settings', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body),
+  });
+  toast(document.getElementById('cfg-dm-enabled').checked ? '✅ تم تفعيل DM الترحيب' : '🚫 تم تعطيل DM الترحيب');
+}
+
+async function resetDmTutorial() {
+  if (!confirm('هل تريد إعادة ضبط رسالة الترحيب للنص الافتراضي؟')) return;
+  const res = await fetch('/api/settings', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ dm_tutorial_text: '' }),
+  }).then(r => r.json());
+  if (res.ok) { toast('🔄 تم الإعادة للافتراضي'); loadSettings(); }
+}
+
+// ─── QoL: Broadcast ────────────────────────────────────────────
+function setBroadcastTarget(t, btn) {
+  broadcastTarget = t;
+  document.querySelectorAll('.target-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+async function sendBroadcast() {
+  const msg = document.getElementById('broadcastMsg').value.trim();
+  if (!msg) { toast('❌ اكتب رسالة أولاً', 'error'); return; }
+  const btn = document.getElementById('broadcastBtn'); btn.disabled = true; btn.textContent = '⏳ جاري...';
+  const res = await fetch('/api/broadcast', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ message: msg, target: broadcastTarget }),
+  }).then(r => r.json()).catch(() => ({ error: 'خطأ' }));
+  btn.disabled = false; btn.textContent = '📡 إرسال';
+  if (res.ok) {
+    toast(`✅ وصلت لـ ${res.sent} سيرفر${res.failed > 0 ? ` (فشل: ${res.failed})` : ''}`);
+    document.getElementById('broadcastResult').textContent = `✅ وصل: ${res.sent} | فشل: ${res.failed}`;
+  } else toast('❌ ' + (res.error||'خطأ'), 'error');
+}
+
+// ─── QoL: Activity feed ────────────────────────────────────────
+async function loadActivity() {
+  const logs = await fetch('/api/activity?limit=40').then(r => r.json()).catch(() => []);
+  document.getElementById('activityMeta').textContent = `آخر ${logs.length} حدث`;
+  if (!logs.length) {
+    document.getElementById('activityFeed').innerHTML = '<p style="color:#6b7280;text-align:center;padding:16px">لا يوجد أحداث</p>';
+    return;
+  }
+  document.getElementById('activityFeed').innerHTML = logs.map(l => {
+    const t = new Date(l.created_at);
+    const timeStr = `${t.getHours().toString().padStart(2,'0')}:${t.getMinutes().toString().padStart(2,'0')}`;
+    const dateStr = t.toLocaleDateString('ar-SA');
+    const serverLabel = l.server_id === 'SYSTEM' ? '⚙️ نظام' : (l.server_name || l.server_id?.slice(-6) || '?');
+    const actionEmoji = {
+      BOT_JOINED:'📥', BOT_LEFT:'📤', TOKEN_ACTIVATED:'🔑', TOKEN_CREATED:'🆕',
+      STEAM_SEARCH:'🔍', SCHEDULER_START:'▶️', SCHEDULER_STOP:'⏹', AD_DELETED:'⚠️',
+      WARNINGS_RESET:'🔄', SERVER_DEACTIVATED:'🚫', BROADCAST_SENT:'📡',
+      SETUP_CHANNEL_CREATED:'⚙️', SETTINGS_UPDATED:'💾',
+    }[l.action] || '📌';
+    return `<div class="activity-item">
+      <span class="activity-time">${dateStr}<br>${timeStr}</span>
+      <span class="activity-server">${esc(serverLabel)}</span>
+      <div style="flex:1">
+        <div class="activity-action">${actionEmoji} ${esc(l.action)}</div>
+        ${l.details ? `<div class="activity-detail">${esc(l.details)}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ─── QoL: Expiring servers ────────────────────────────────────
+async function loadExpiringServers() {
+  const servers = await fetch('/api/servers').then(r => r.json()).catch(() => []);
+  const now = Date.now();
+  const expiring = servers.filter(s => {
+    const t = s.active_token;
+    if (t) { const ms = new Date(t.expires_at) - now; return ms > 0 && ms < 86400000; }
+    if (s.free_tier_expires_at) { const ms = new Date(s.free_tier_expires_at) - now; return ms > 0 && ms < 86400000; }
+    return false;
+  });
+
+  if (!expiring.length) {
+    document.getElementById('expiringList').innerHTML = '<p style="color:#22c55e;font-size:13px">✅ لا يوجد سيرفرات على وشك الانتهاء</p>';
+    return;
+  }
+
+  document.getElementById('expiringList').innerHTML = expiring.map(s => {
+    const ms = expiryMs(s);
+    const h = Math.floor(ms / 3600000), m = Math.floor((ms % 3600000) / 60000);
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #1f2937">
+      <div>
+        <span style="color:#e5e7eb;font-weight:600">${esc(s.name)}</span>
+        <span style="color:#f59e0b;font-size:12px;margin-right:10px">⏰ ينتهي خلال ${h}س ${m}د</span>
+      </div>
+      <button class="btn-extend" onclick="quickExtend('${s.id}','${esc(s.name)}')">+2ي مجاني</button>
+    </div>`;
+  }).join('');
+}
+
+// ─── Actions ───────────────────────────────────────────────────
 async function toggleServer(id, isActive) {
-  const res = await fetch(`/api/servers/${id}/toggle`, { method: 'POST' }).then(r => r.json());
+  const res = await fetch(`/api/servers/${id}/toggle`, { method:'POST' }).then(r => r.json());
   if (res.ok) { toast(res.is_active ? '✅ تم التفعيل' : '🔒 تم التعطيل'); loadServers(); }
-  else toast('❌ ' + (res.error || 'خطأ'), 'error');
+  else toast('❌ ' + (res.error||'خطأ'), 'error');
+}
+
+async function quickExtend(id, name) {
+  if (!confirm(`تمديد الخطة المجانية لـ "${name}" بيومين؟`)) return;
+  const res = await fetch(`/api/servers/${id}/extend-free`, {
+    method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ days: 2 }),
+  }).then(r => r.json());
+  if (res.ok) { toast(`✅ تم تمديد ${name} ليومين`); loadServers(); loadExpiringServers(); }
+  else toast('❌ ' + (res.error||'خطأ'), 'error');
 }
 
 function openTokenModal(id, name) {
   currentServerId = id; currentServerName = name;
   document.getElementById('tokenServerName').textContent = '🖥️ السيرفر: ' + name;
-  resetTokenForm();
-  openModal('tokenModal');
+  resetTokenForm(); openModal('tokenModal');
 }
 
 function resetTokenForm() {
@@ -607,23 +1014,19 @@ function resetTokenForm() {
 }
 
 async function generateToken() {
-  const days    = Number(document.getElementById('tDays').value)    || 0;
-  const hours   = Number(document.getElementById('tHours').value)   || 0;
+  const days = Number(document.getElementById('tDays').value) || 0;
+  const hours = Number(document.getElementById('tHours').value) || 0;
   const minutes = Number(document.getElementById('tMinutes').value) || 0;
-  if (days + hours + minutes === 0) { toast('❌ يجب تحديد مدة أكبر من صفر', 'error'); return; }
-  const btn = document.getElementById('genBtn');
-  btn.disabled = true; btn.textContent = '⏳ جاري...';
+  if (days + hours + minutes === 0) { toast('❌ يجب تحديد مدة', 'error'); return; }
+  const btn = document.getElementById('genBtn'); btn.disabled = true; btn.textContent = '⏳...';
   const res = await fetch('/api/tokens', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      days, hours, minutes,
-      label:             document.getElementById('tLabel').value.trim(),
-      here_min_interval: Number(document.getElementById('tHereMin').value)    || 0,
-      steam_limit:       Number(document.getElementById('tSteamLimit').value) || 0,
-      is_free_tier:      document.getElementById('tFreeTier').checked,
-    }),
-  }).then(r => r.json()).catch(() => ({ error: 'خطأ في الاتصال' }));
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ days, hours, minutes,
+      label: document.getElementById('tLabel').value.trim(),
+      here_min_interval: Number(document.getElementById('tHereMin').value) || 0,
+      steam_limit: Number(document.getElementById('tSteamLimit').value) || 0,
+      is_free_tier: document.getElementById('tFreeTier').checked }),
+  }).then(r => r.json()).catch(() => ({ error: 'خطأ' }));
   btn.disabled = false; btn.textContent = 'إنشاء التوكن';
   if (res.ok) {
     document.getElementById('tokenValue').textContent = res.token;
@@ -631,35 +1034,29 @@ async function generateToken() {
     document.getElementById('tokenForm').style.display = 'none';
     document.getElementById('tokenFooter').style.display = 'none';
     document.getElementById('tokenResult').style.display = 'block';
-    toast('✅ تم إنشاء التوكن');
-    loadTokens();
-  } else toast('❌ ' + (res.error || 'خطأ'), 'error');
+    toast('✅ تم إنشاء التوكن'); loadTokens();
+  } else toast('❌ ' + (res.error||'خطأ'), 'error');
 }
 
-function copyToken() {
-  navigator.clipboard.writeText(document.getElementById('tokenValue').textContent)
-    .then(() => toast('📋 تم النسخ'));
-}
+function copyToken() { navigator.clipboard.writeText(document.getElementById('tokenValue').textContent).then(() => toast('📋 تم النسخ')); }
 
 async function sendTokenToServer() {
   const token = document.getElementById('tokenValue').textContent;
   if (!token || !currentServerId) return;
-  const btn = document.getElementById('sendTokenBtn');
-  btn.disabled = true; btn.textContent = '⏳ جاري الإرسال...';
+  const btn = document.getElementById('sendTokenBtn'); btn.disabled = true; btn.textContent = '⏳...';
   const res = await fetch('/api/tokens/send', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({ token, server_id: currentServerId }),
-  }).then(r => r.json()).catch(() => ({ error: 'خطأ في الاتصال' }));
-  btn.disabled = false; btn.textContent = '📤 أرسل للسيرفر الحالي';
-  if (res.ok) toast('✅ تم إرسال التوكن لروم الداشبورد في السيرفر');
-  else toast('❌ ' + (res.error || 'خطأ في الإرسال'), 'error');
+  }).then(r => r.json()).catch(() => ({ error: 'خطأ' }));
+  btn.disabled = false; btn.textContent = '📤 أرسل للسيرفر';
+  if (res.ok) toast('✅ تم إرسال التوكن للسيرفر');
+  else toast('❌ ' + (res.error||'خطأ'), 'error');
 }
 
 async function openLogs(id, name) {
   currentServerId = id;
   document.getElementById('logsServerName').textContent = name;
-  document.getElementById('logsBody').innerHTML = '<tr><td colspan="3" class="muted" style="text-align:center;padding:20px">⏳ جاري التحميل...</td></tr>';
+  document.getElementById('logsBody').innerHTML = '<tr><td colspan="3" class="muted" style="text-align:center;padding:20px">⏳...</td></tr>';
   openModal('logsModal');
   const logs = await fetch(`/api/servers/${id}/logs?limit=100`).then(r => r.json()).catch(() => []);
   if (!logs.length) {
@@ -680,22 +1077,20 @@ function openPerms(id, name, currentPerm) {
 
 async function savePermissions() {
   const perm = document.querySelector('input[name="perm"]:checked').value;
-  const btn = document.getElementById('permBtn');
-  btn.disabled = true; btn.textContent = '⏳...';
+  const btn = document.getElementById('permBtn'); btn.disabled = true; btn.textContent = '⏳...';
   const res = await fetch(`/api/servers/${currentServerId}/permission`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ permission: perm }),
+    method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ permission: perm }),
   }).then(r => r.json());
   btn.disabled = false; btn.textContent = 'حفظ';
   if (res.ok) { toast('✅ تم الحفظ'); closeModal('permModal'); loadServers(); }
-  else toast('❌ ' + (res.error || 'خطأ'), 'error');
+  else toast('❌ ' + (res.error||'خطأ'), 'error');
 }
 
 async function resetWarnings(id) {
   if (!confirm('إعادة ضبط عداد التحذيرات؟')) return;
-  const res = await fetch(`/api/servers/${id}/reset-warnings`, { method: 'POST' }).then(r => r.json());
+  const res = await fetch(`/api/servers/${id}/reset-warnings`, { method:'POST' }).then(r => r.json());
   if (res.ok) { toast('🔄 تم إعادة الضبط'); loadServers(); }
-  else toast('❌ ' + (res.error || 'خطأ'), 'error');
+  else toast('❌ ' + (res.error||'خطأ'), 'error');
 }
 
 function openInvite(id, name) {
@@ -707,32 +1102,25 @@ function openInvite(id, name) {
 }
 
 async function generateInvite() {
-  const btn = document.getElementById('inviteBtn');
-  btn.disabled = true; btn.textContent = '⏳ جاري...';
-  const res = await fetch(`/api/servers/${currentServerId}/get-invite`, { method: 'POST' }).then(r => r.json());
+  const btn = document.getElementById('inviteBtn'); btn.disabled = true; btn.textContent = '⏳...';
+  const res = await fetch(`/api/servers/${currentServerId}/get-invite`, { method:'POST' }).then(r => r.json());
   btn.disabled = false; btn.textContent = 'توليد رابط';
   if (res.ok) {
     document.getElementById('inviteUrl').textContent = res.invite_url;
     document.getElementById('inviteResult').style.display = 'block';
-  } else toast('❌ ' + (res.error || 'خطأ'), 'error');
+  } else toast('❌ ' + (res.error||'خطأ'), 'error');
 }
 
-function copyInvite() {
-  navigator.clipboard.writeText(document.getElementById('inviteUrl').textContent);
-  toast('📋 تم نسخ الرابط');
-}
+function copyInvite() { navigator.clipboard.writeText(document.getElementById('inviteUrl').textContent); toast('📋 تم نسخ الرابط'); }
 
 async function kickBot(id, name) {
-  if (!confirm(`هل تريد إخراج البوت من سيرفر "${name}"؟`)) return;
-  const res = await fetch(`/api/servers/${id}/kick`, { method: 'POST' }).then(r => r.json());
+  if (!confirm(`هل تريد إخراج البوت من "${name}"؟`)) return;
+  const res = await fetch(`/api/servers/${id}/kick`, { method:'POST' }).then(r => r.json());
   if (res.ok) { toast('🚪 تم إخراج البوت'); setTimeout(loadServers, 1500); }
-  else toast('❌ ' + (res.error || 'خطأ'), 'error');
+  else toast('❌ ' + (res.error||'خطأ'), 'error');
 }
 
-async function logout() {
-  await fetch('/api/logout', { method: 'POST' });
-  window.location.href = '/login.html';
-}
+async function logout() { await fetch('/api/logout', { method:'POST' }); window.location.href = '/login.html'; }
 
 // ─── Modal helpers ─────────────────────────────────────────────
 function openModal(id)  { document.getElementById(id).classList.add('open'); }
@@ -746,11 +1134,11 @@ function toast(msg, type = 'success') {
   t.textContent = msg;
   t.className = 'toast show' + (type === 'error' ? ' toast-error' : '');
   clearTimeout(t._timer);
-  t._timer = setTimeout(() => t.className = 'toast', 3000);
+  t._timer = setTimeout(() => t.className = 'toast', 3500);
 }
 
 function esc(s) {
-  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 init();
