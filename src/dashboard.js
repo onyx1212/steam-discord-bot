@@ -5,10 +5,11 @@ import { fileURLToPath } from 'url';
 import { ChannelType } from 'discord.js';
 import {
   getAllServers, getServer, createToken, getAllTokens, getServerToken,
-  getLogs, resetWarnings, setServerActive, setCommandPermission,
+  getLogs, getRecentLogsAll, resetWarnings, setServerActive, setCommandPermission,
   addAllowedUser, removeAllowedUser, getAllowedUsers, addLog,
   setDashboardChannel, setServerInviteLink, autoActivateFreeTier,
   deleteToken, setTokenDisabled,
+  getSetting, setSetting, getAllSettings,
 } from './db.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -25,7 +26,7 @@ export function startDashboard(client) {
   const app = express();
   const PORT = process.env.PORT || 3000;
 
-  app.use(express.json());
+  app.use(express.json({ limit: '500kb' }));
   app.use(express.urlencoded({ extended: true }));
   app.use(session({
     secret: SESSION_SECRET,
@@ -57,45 +58,81 @@ export function startDashboard(client) {
   app.post('/api/logout', (req, res) => { req.session.destroy(); res.json({ ok: true }); });
   app.get('/api/me', auth, (req, res) => res.json({ username: DASHBOARD_USER }));
 
+  // ─── Stats ────────────────────────────────────────────────────────
+  app.get('/api/stats', auth, (req, res) => {
+    const servers  = getAllServers();
+    const tokens   = getAllTokens();
+    const now      = new Date();
+    const online   = servers.filter(s => discordClient?.guilds.cache.has(s.id)).length;
+    const paid     = servers.filter(s => {
+      const t = getServerToken(s.id); return !!t;
+    }).length;
+    const freeTier = servers.filter(s =>
+      !getServerToken(s.id) && s.free_tier_expires_at && new Date(s.free_tier_expires_at) > now
+    ).length;
+    const expiring = servers.filter(s => {
+      const t = getServerToken(s.id);
+      if (t) { const ms = new Date(t.expires_at) - now; return ms > 0 && ms < 3 * 86400000; }
+      if (s.free_tier_expires_at) { const ms = new Date(s.free_tier_expires_at) - now; return ms > 0 && ms < 86400000; }
+      return false;
+    }).length;
+    const warned   = servers.filter(s => s.warning_count >= 3).length;
+    const tokensOk = tokens.filter(t => !t.disabled && new Date(t.expires_at) > now && !t.used_by_server_id).length;
+
+    res.json({
+      total_servers: servers.length,
+      online,
+      paid,
+      free_tier: freeTier,
+      inactive: servers.length - paid - freeTier,
+      expiring_soon: expiring,
+      warning_servers: warned,
+      total_tokens: tokens.length,
+      tokens_available: tokensOk,
+      uptime_seconds: Math.floor(process.uptime()),
+    });
+  });
+
+  // ─── Recent Activity (all servers) ────────────────────────────────
+  app.get('/api/activity', auth, (req, res) => {
+    const limit = Math.min(Number(req.query.limit) || 30, 200);
+    const logs  = getRecentLogsAll(limit);
+    const servers = getAllServers();
+    const nameMap = Object.fromEntries(servers.map(s => [s.id, s.name]));
+    res.json(logs.map(l => ({ ...l, server_name: nameMap[l.server_id] || l.server_id })));
+  });
+
   // ─── Servers ──────────────────────────────────────────────────────
   app.get('/api/servers', auth, (req, res) => {
     const servers = getAllServers();
-    const enriched = servers.map(s => {
-      const guild = discordClient?.guilds.cache.get(s.id);
-      const activeToken = getServerToken(s.id);
-      const freeTierActive = !activeToken && s.free_tier_expires_at && new Date(s.free_tier_expires_at) > new Date();
-      return {
-        ...s,
-        member_count: guild?.memberCount || 0,
-        online: !!guild,
-        free_tier_active: freeTierActive,
-        active_token: activeToken ? {
-          expires_at: activeToken.expires_at,
-          here_min_interval: activeToken.here_min_interval,
-          steam_limit: activeToken.steam_limit,
-          server_steam_uses: activeToken.server_steam_uses,
-          label: activeToken.label,
-          is_free_tier: activeToken.is_free_tier,
-        } : null,
-      };
-    });
+    const enriched = servers.map(s => enrichServer(s));
     res.json(enriched);
   });
+
+  function enrichServer(s) {
+    const guild = discordClient?.guilds.cache.get(s.id);
+    const activeToken = getServerToken(s.id);
+    const freeTierActive = !activeToken && s.free_tier_expires_at && new Date(s.free_tier_expires_at) > new Date();
+    return {
+      ...s,
+      member_count: guild?.memberCount || 0,
+      online: !!guild,
+      free_tier_active: freeTierActive,
+      active_token: activeToken ? {
+        expires_at: activeToken.expires_at,
+        here_min_interval: activeToken.here_min_interval,
+        steam_limit: activeToken.steam_limit,
+        server_steam_uses: activeToken.server_steam_uses,
+        label: activeToken.label,
+        is_free_tier: activeToken.is_free_tier,
+      } : null,
+    };
+  }
 
   app.get('/api/servers/:id', auth, (req, res) => {
     const server = getServer(req.params.id);
     if (!server) return res.status(404).json({ error: 'السيرفر غير موجود' });
-    const guild = discordClient?.guilds.cache.get(req.params.id);
-    const activeToken = getServerToken(req.params.id);
-    const freeTierActive = !activeToken && server.free_tier_expires_at && new Date(server.free_tier_expires_at) > new Date();
-    res.json({
-      ...server,
-      member_count: guild?.memberCount || 0,
-      online: !!guild,
-      free_tier_active: freeTierActive,
-      active_token: activeToken || null,
-      allowed_users: getAllowedUsers(req.params.id),
-    });
+    res.json({ ...enrichServer(server), allowed_users: getAllowedUsers(req.params.id) });
   });
 
   app.post('/api/servers/:id/toggle', auth, async (req, res) => {
@@ -106,22 +143,23 @@ export function startDashboard(client) {
     addLog(req.params.id, 'MANUAL_TOGGLE', `تم ${newState ? 'تفعيل' : 'تعطيل'} السيرفر يدوياً`);
     const guild = discordClient?.guilds.cache.get(req.params.id);
     if (guild && server.dashboard_channel_id) {
-      const ch = guild.channels.cache.get(server.dashboard_channel_id);
-      ch?.send(`${newState ? '✅' : '🔒'} تم ${newState ? 'تفعيل' : 'تعطيل'} البوت يدوياً من لوحة التحكم.`);
+      guild.channels.cache.get(server.dashboard_channel_id)
+        ?.send(`${newState ? '✅' : '🔒'} تم ${newState ? 'تفعيل' : 'تعطيل'} البوت يدوياً من لوحة التحكم.`);
     }
     res.json({ ok: true, is_active: newState });
   });
 
   app.post('/api/servers/:id/extend-free', auth, async (req, res) => {
-    const { days = 2 } = req.body;
+    const { days } = req.body;
     const server = getServer(req.params.id);
     if (!server) return res.status(404).json({ error: 'السيرفر غير موجود' });
-    const expiresAt = autoActivateFreeTier(req.params.id, Number(days));
-    addLog(req.params.id, 'FREE_TIER_EXTENDED', `تم تمديد الفترة المجانية ${days} يوم`);
+    const d = Number(days) || Number(getSetting('free_tier_days', '2'));
+    const expiresAt = autoActivateFreeTier(req.params.id, d);
+    addLog(req.params.id, 'FREE_TIER_EXTENDED', `تم تمديد الفترة المجانية ${d} يوم`);
     const guild = discordClient?.guilds.cache.get(req.params.id);
     if (guild && server.dashboard_channel_id) {
-      const ch = guild.channels.cache.get(server.dashboard_channel_id);
-      ch?.send(`🎁 تم تمديد الفترة المجانية حتى ${new Date(expiresAt).toLocaleDateString('ar-SA')}`);
+      guild.channels.cache.get(server.dashboard_channel_id)
+        ?.send(`🎁 تم تمديد الفترة المجانية حتى ${new Date(expiresAt).toLocaleDateString('ar-SA')}`);
     }
     res.json({ ok: true, free_tier_expires_at: expiresAt });
   });
@@ -139,7 +177,8 @@ export function startDashboard(client) {
     addLog(req.params.id, 'WARNINGS_RESET', 'تم إعادة ضبط التحذيرات من الداشبورد');
     const guild = discordClient?.guilds.cache.get(req.params.id);
     if (guild && server.dashboard_channel_id) {
-      guild.channels.cache.get(server.dashboard_channel_id)?.send('🔄 تم إعادة ضبط عداد التحذيرات وإعادة تفعيل البوت.');
+      guild.channels.cache.get(server.dashboard_channel_id)
+        ?.send('🔄 تم إعادة ضبط عداد التحذيرات وإعادة تفعيل البوت.');
     }
     res.json({ ok: true });
   });
@@ -197,10 +236,28 @@ export function startDashboard(client) {
     }
   });
 
-  // ─── Tokens (Global) ──────────────────────────────────────────────
-  app.get('/api/tokens', auth, (req, res) => {
-    res.json(getAllTokens());
+  // ─── Broadcast ────────────────────────────────────────────────────
+  app.post('/api/broadcast', auth, async (req, res) => {
+    const { message, target = 'all' } = req.body;
+    if (!message?.trim()) return res.status(400).json({ error: 'الرسالة فارغة' });
+    const servers = getAllServers();
+    let sent = 0, failed = 0;
+    for (const s of servers) {
+      if (target === 'paid' && !getServerToken(s.id)) continue;
+      if (target === 'free' && getServerToken(s.id)) continue;
+      const guild = discordClient?.guilds.cache.get(s.id);
+      if (!guild || !s.dashboard_channel_id) { failed++; continue; }
+      const ch = guild.channels.cache.get(s.dashboard_channel_id);
+      if (!ch) { failed++; continue; }
+      try { await ch.send(message); sent++; }
+      catch { failed++; }
+    }
+    addLog('SYSTEM', 'BROADCAST_SENT', `تم إرسال رسالة جماعية — وصل: ${sent} فشل: ${failed}`);
+    res.json({ ok: true, sent, failed });
   });
+
+  // ─── Tokens (Global) ──────────────────────────────────────────────
+  app.get('/api/tokens', auth, (req, res) => res.json(getAllTokens()));
 
   app.post('/api/tokens', auth, (req, res) => {
     const { days = 0, hours = 0, minutes = 0, label = '',
@@ -209,25 +266,22 @@ export function startDashboard(client) {
     if (totalMs <= 0) return res.status(400).json({ error: 'المدة يجب أن تكون أكبر من 0' });
     const expiresAt = new Date(Date.now() + totalMs).toISOString();
     const { token } = createToken({
-      label,
-      expiresAt,
+      label, expiresAt,
       hereMinInterval: Number(here_min_interval),
       steamLimit: Number(steam_limit),
       isFreeTier: !!is_free_tier,
     });
     addLog('SYSTEM', 'TOKEN_CREATED',
-      `توكن جديد [${label || 'بدون تسمية'}]${is_free_tier ? ' [Free Tier]' : ''} — ينتهي: ${expiresAt}`);
+      `توكن جديد [${label || 'بدون تسمية'}]${is_free_tier ? ' [Free]' : ''} — ينتهي: ${expiresAt}`);
     res.json({ ok: true, token, expires_at: expiresAt });
   });
 
-  // Delete token
   app.delete('/api/tokens/:id', auth, (req, res) => {
     deleteToken(req.params.id);
     addLog('SYSTEM', 'TOKEN_DELETED', `تم حذف توكن: ${req.params.id}`);
     res.json({ ok: true });
   });
 
-  // Toggle token disabled/enabled
   app.post('/api/tokens/:id/toggle', auth, (req, res) => {
     const tokens = getAllTokens();
     const t = tokens.find(x => x.id === req.params.id);
@@ -239,7 +293,6 @@ export function startDashboard(client) {
     res.json({ ok: true, disabled: newDisabled });
   });
 
-  // Send token to a specific server's dashboard channel
   app.post('/api/tokens/send', auth, async (req, res) => {
     const { token, server_id } = req.body;
     if (!token || !server_id) return res.status(400).json({ error: 'token و server_id مطلوبان' });
@@ -250,11 +303,33 @@ export function startDashboard(client) {
     const ch = guild.channels.cache.get(server.dashboard_channel_id);
     if (!ch) return res.status(404).json({ error: 'الروم غير موجود' });
     await ch.send(
-      `🔑 **توكن تفعيل جديد**\n\`\`\`${token}\`\`\`\n` +
-      `🚀 استخدم الأمر: \`/active ${token}\``
+      `🔑 **توكن تفعيل جديد**\n\`\`\`${token}\`\`\`\n🚀 استخدم الأمر: \`/active ${token}\``
     );
-    addLog(server_id, 'TOKEN_SENT', `تم إرسال توكن للسيرفر`);
+    addLog(server_id, 'TOKEN_SENT', 'تم إرسال توكن للسيرفر');
     res.json({ ok: true });
+  });
+
+  // ─── Bot Settings ─────────────────────────────────────────────────
+  app.get('/api/settings', auth, (req, res) => {
+    res.json(getAllSettings());
+  });
+
+  app.post('/api/settings', auth, (req, res) => {
+    const allowed = [
+      'free_tier_days', 'free_tier_here_min', 'free_tier_steam_limit',
+      'ad_invite', 'ad_message', 'dm_tutorial_enabled', 'dm_tutorial_text',
+    ];
+    const body = req.body;
+    const updated = [];
+    for (const key of allowed) {
+      if (key in body) {
+        setSetting(key, body[key]);
+        updated.push(key);
+      }
+    }
+    if (updated.length === 0) return res.status(400).json({ error: 'لا يوجد بيانات للتحديث' });
+    addLog('SYSTEM', 'SETTINGS_UPDATED', `تحديث الإعدادات: ${updated.join(', ')}`);
+    res.json({ ok: true, updated });
   });
 
   // ─── SSE real-time updates ─────────────────────────────────────────
@@ -301,7 +376,7 @@ export function startDashboard(client) {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`🌐 الداشبورد شغّال على البورت ${PORT}`);
-    const domains = process.env.RAILWAY_PUBLIC_DOMAIN || process.env.RAILWAY_STATIC_URL || `localhost:${PORT}`;
-    console.log(`🔗 الرابط: https://${domains}`);
+    const domain = process.env.RAILWAY_PUBLIC_DOMAIN || process.env.RAILWAY_STATIC_URL || `localhost:${PORT}`;
+    console.log(`🔗 الرابط: https://${domain}`);
   });
 }
