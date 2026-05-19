@@ -180,7 +180,8 @@ client.on('interactionCreate', async interaction => {
     const tokenRow = getTokenByValue(tokenValue);
     if (!tokenRow) return interaction.editReply('❌ التوكن غير صحيح.');
     if (new Date(tokenRow.expires_at) <= new Date()) return interaction.editReply('❌ انتهت صلاحية التوكن. اطلب توكناً جديداً.');
-    activateToken(tokenRow.id, guildId);
+    const activateResult = activateToken(tokenRow.id, guildId);
+    if (!activateResult.ok) return interaction.editReply(`❌ ${activateResult.error}`);
     addLog(guildId, 'TOKEN_ACTIVATED', `تم تفعيل التوكن من ${interaction.user.tag}`);
     const expiresDate = new Date(tokenRow.expires_at).toLocaleDateString('ar-SA');
     const limits = [];
