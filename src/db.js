@@ -164,10 +164,17 @@ export function getServerToken(guildId) {
 }
 
 export function activateToken(tokenId, guildId) {
+  const existing = db.prepare(
+    'SELECT server_id FROM server_tokens WHERE token_id = ? LIMIT 1'
+  ).get(tokenId);
+  if (existing && existing.server_id !== guildId) {
+    return { ok: false, error: 'هذا التوكن مستخدم بالفعل من سيرفر آخر.' };
+  }
   db.prepare(
     'INSERT OR REPLACE INTO server_tokens (server_id, token_id, activated_at, steam_uses) VALUES (?, ?, ?, 0)'
   ).run(guildId, tokenId, new Date().toISOString());
   db.prepare('UPDATE servers SET active_token_id = ?, is_active = 1 WHERE id = ?').run(tokenId, guildId);
+  return { ok: true };
 }
 
 export function incrementSteamUses(guildId) {
