@@ -8,6 +8,7 @@ import {
   getLogs, resetWarnings, setServerActive, setCommandPermission,
   addAllowedUser, removeAllowedUser, getAllowedUsers, addLog,
   setDashboardChannel, setServerInviteLink, autoActivateFreeTier,
+  deleteToken, setTokenDisabled,
 } from './db.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -74,6 +75,7 @@ export function startDashboard(client) {
           steam_limit: activeToken.steam_limit,
           server_steam_uses: activeToken.server_steam_uses,
           label: activeToken.label,
+          is_free_tier: activeToken.is_free_tier,
         } : null,
       };
     });
@@ -96,7 +98,6 @@ export function startDashboard(client) {
     });
   });
 
-  // Toggle active (manual override)
   app.post('/api/servers/:id/toggle', auth, async (req, res) => {
     const server = getServer(req.params.id);
     if (!server) return res.status(404).json({ error: 'السيرفر غير موجود' });
@@ -111,7 +112,6 @@ export function startDashboard(client) {
     res.json({ ok: true, is_active: newState });
   });
 
-  // Extend free tier
   app.post('/api/servers/:id/extend-free', auth, async (req, res) => {
     const { days = 2 } = req.body;
     const server = getServer(req.params.id);
@@ -126,13 +126,11 @@ export function startDashboard(client) {
     res.json({ ok: true, free_tier_expires_at: expiresAt });
   });
 
-  // Logs
   app.get('/api/servers/:id/logs', auth, (req, res) => {
     const limit = Math.min(Number(req.query.limit) || 100, 500);
     res.json(getLogs(req.params.id, limit));
   });
 
-  // Reset warnings
   app.post('/api/servers/:id/reset-warnings', auth, (req, res) => {
     const server = getServer(req.params.id);
     if (!server) return res.status(404).json({ error: 'السيرفر غير موجود' });
@@ -146,7 +144,6 @@ export function startDashboard(client) {
     res.json({ ok: true });
   });
 
-  // Permissions
   app.post('/api/servers/:id/permission', auth, (req, res) => {
     const { permission } = req.body;
     if (!['owner', 'everyone', 'specific'].includes(permission))
@@ -165,7 +162,6 @@ export function startDashboard(client) {
     res.json({ ok: true, users: getAllowedUsers(req.params.id) });
   });
 
-  // Invite link
   app.post('/api/servers/:id/invite-link', auth, (req, res) => {
     const { link } = req.body;
     setServerInviteLink(req.params.id, link);
@@ -173,7 +169,6 @@ export function startDashboard(client) {
     res.json({ ok: true });
   });
 
-  // Get/generate Discord invite
   app.post('/api/servers/:id/get-invite', auth, async (req, res) => {
     const guild = discordClient?.guilds.cache.get(req.params.id);
     if (!guild) return res.status(404).json({ error: 'السيرفر غير متصل حالياً' });
@@ -190,7 +185,6 @@ export function startDashboard(client) {
     }
   });
 
-  // Kick bot
   app.post('/api/servers/:id/kick', auth, async (req, res) => {
     const guild = discordClient?.guilds.cache.get(req.params.id);
     if (!guild) return res.status(404).json({ error: 'السيرفر غير متصل حالياً' });
@@ -210,7 +204,7 @@ export function startDashboard(client) {
 
   app.post('/api/tokens', auth, (req, res) => {
     const { days = 0, hours = 0, minutes = 0, label = '',
-            here_min_interval = 0, steam_limit = 0 } = req.body;
+            here_min_interval = 0, steam_limit = 0, is_free_tier = false } = req.body;
     const totalMs = (Number(days) * 86400 + Number(hours) * 3600 + Number(minutes) * 60) * 1000;
     if (totalMs <= 0) return res.status(400).json({ error: 'المدة يجب أن تكون أكبر من 0' });
     const expiresAt = new Date(Date.now() + totalMs).toISOString();
@@ -219,10 +213,30 @@ export function startDashboard(client) {
       expiresAt,
       hereMinInterval: Number(here_min_interval),
       steamLimit: Number(steam_limit),
+      isFreeTier: !!is_free_tier,
     });
     addLog('SYSTEM', 'TOKEN_CREATED',
-      `توكن جديد [${label || 'بدون تسمية'}] — ينتهي: ${expiresAt}`);
+      `توكن جديد [${label || 'بدون تسمية'}]${is_free_tier ? ' [Free Tier]' : ''} — ينتهي: ${expiresAt}`);
     res.json({ ok: true, token, expires_at: expiresAt });
+  });
+
+  // Delete token
+  app.delete('/api/tokens/:id', auth, (req, res) => {
+    deleteToken(req.params.id);
+    addLog('SYSTEM', 'TOKEN_DELETED', `تم حذف توكن: ${req.params.id}`);
+    res.json({ ok: true });
+  });
+
+  // Toggle token disabled/enabled
+  app.post('/api/tokens/:id/toggle', auth, (req, res) => {
+    const tokens = getAllTokens();
+    const t = tokens.find(x => x.id === req.params.id);
+    if (!t) return res.status(404).json({ error: 'التوكن غير موجود' });
+    const newDisabled = !t.disabled;
+    setTokenDisabled(req.params.id, newDisabled);
+    addLog('SYSTEM', newDisabled ? 'TOKEN_DISABLED' : 'TOKEN_ENABLED',
+      `تم ${newDisabled ? 'تعطيل' : 'تفعيل'} التوكن: ${t.label || req.params.id}`);
+    res.json({ ok: true, disabled: newDisabled });
   });
 
   // Send token to a specific server's dashboard channel
@@ -270,6 +284,7 @@ export function startDashboard(client) {
               steam_limit: activeToken.steam_limit,
               server_steam_uses: activeToken.server_steam_uses,
               label: activeToken.label,
+              is_free_tier: activeToken.is_free_tier,
             } : null,
           };
         });
@@ -282,7 +297,6 @@ export function startDashboard(client) {
     req.on('close', () => clearInterval(interval));
   });
 
-  // Health check
   app.get('/health', (req, res) => res.json({ ok: true, uptime: process.uptime() }));
 
   app.listen(PORT, '0.0.0.0', () => {
