@@ -25,7 +25,9 @@ db.exec(`
     is_active INTEGER DEFAULT 0,
     command_permission TEXT DEFAULT 'owner',
     warning_count INTEGER DEFAULT 0,
-    active_token_id TEXT
+    active_token_id TEXT,
+    invite_link TEXT,
+    last_seen TEXT
   );
 
   CREATE TABLE IF NOT EXISTS tokens (
@@ -34,6 +36,10 @@ db.exec(`
     token TEXT UNIQUE,
     expires_at TEXT,
     is_free_tier INTEGER DEFAULT 0,
+    invite_link TEXT,
+    here_min_interval INTEGER DEFAULT 0,
+    steam_limit INTEGER DEFAULT 0,
+    steam_uses INTEGER DEFAULT 0,
     created_at TEXT,
     is_activated INTEGER DEFAULT 0,
     FOREIGN KEY (server_id) REFERENCES servers(id)
@@ -55,6 +61,27 @@ db.exec(`
   );
 `);
 
+// Migrations for existing databases
+function migrate() {
+  const tokenCols = db.prepare('PRAGMA table_info(tokens)').all().map(c => c.name);
+  if (!tokenCols.includes('here_min_interval'))
+    db.exec('ALTER TABLE tokens ADD COLUMN here_min_interval INTEGER DEFAULT 0');
+  if (!tokenCols.includes('steam_limit'))
+    db.exec('ALTER TABLE tokens ADD COLUMN steam_limit INTEGER DEFAULT 0');
+  if (!tokenCols.includes('steam_uses'))
+    db.exec('ALTER TABLE tokens ADD COLUMN steam_uses INTEGER DEFAULT 0');
+  if (!tokenCols.includes('invite_link'))
+    db.exec('ALTER TABLE tokens ADD COLUMN invite_link TEXT');
+
+  const serverCols = db.prepare('PRAGMA table_info(servers)').all().map(c => c.name);
+  if (!serverCols.includes('invite_link'))
+    db.exec('ALTER TABLE servers ADD COLUMN invite_link TEXT');
+  if (!serverCols.includes('last_seen'))
+    db.exec('ALTER TABLE servers ADD COLUMN last_seen TEXT');
+}
+migrate();
+
+// ─── Servers ──────────────────────────────────────────────────
 export function getServer(guildId) {
   return db.prepare('SELECT * FROM servers WHERE id = ?').get(guildId);
 }
@@ -65,12 +92,14 @@ export function getAllServers() {
 
 export function upsertServer(guildId, name, icon) {
   const existing = getServer(guildId);
+  const now = new Date().toISOString();
   if (!existing) {
     db.prepare(
-      'INSERT INTO servers (id, name, icon, joined_at) VALUES (?, ?, ?, ?)'
-    ).run(guildId, name, icon || null, new Date().toISOString());
+      'INSERT INTO servers (id, name, icon, joined_at, last_seen) VALUES (?, ?, ?, ?, ?)'
+    ).run(guildId, name, icon || null, now, now);
   } else {
-    db.prepare('UPDATE servers SET name = ?, icon = ? WHERE id = ?').run(name, icon || null, guildId);
+    db.prepare('UPDATE servers SET name = ?, icon = ?, last_seen = ? WHERE id = ?')
+      .run(name, icon || null, now, guildId);
   }
 }
 
@@ -86,6 +115,14 @@ export function setCommandPermission(guildId, permission) {
   db.prepare('UPDATE servers SET command_permission = ? WHERE id = ?').run(permission, guildId);
 }
 
+export function setServerInviteLink(guildId, link) {
+  db.prepare('UPDATE servers SET invite_link = ? WHERE id = ?').run(link || null, guildId);
+}
+
+export function updateLastSeen(guildId) {
+  db.prepare('UPDATE servers SET last_seen = ? WHERE id = ?').run(new Date().toISOString(), guildId);
+}
+
 export function incrementWarning(guildId) {
   db.prepare('UPDATE servers SET warning_count = warning_count + 1 WHERE id = ?').run(guildId);
   return db.prepare('SELECT warning_count FROM servers WHERE id = ?').get(guildId)?.warning_count || 0;
@@ -95,12 +132,25 @@ export function resetWarnings(guildId) {
   db.prepare('UPDATE servers SET warning_count = 0 WHERE id = ?').run(guildId);
 }
 
-export function createToken(serverId, expiresAt, isFreeTier) {
+export function removeServer(guildId) {
+  db.prepare('DELETE FROM servers WHERE id = ?').run(guildId);
+}
+
+// ─── Tokens ───────────────────────────────────────────────────
+export function createToken(serverId, expiresAt, { isFreeTier, inviteLink, hereMinInterval, steamLimit }) {
   const id = randomUUID();
   const token = randomUUID().replace(/-/g, '') + randomUUID().replace(/-/g, '');
   db.prepare(
-    'INSERT INTO tokens (id, server_id, token, expires_at, is_free_tier, created_at) VALUES (?, ?, ?, ?, ?, ?)'
-  ).run(id, serverId, token, expiresAt, isFreeTier ? 1 : 0, new Date().toISOString());
+    `INSERT INTO tokens (id, server_id, token, expires_at, is_free_tier, invite_link, here_min_interval, steam_limit, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    id, serverId, token, expiresAt,
+    isFreeTier ? 1 : 0,
+    inviteLink || null,
+    hereMinInterval || 0,
+    steamLimit || 0,
+    new Date().toISOString()
+  );
   return { id, token };
 }
 
@@ -110,14 +160,9 @@ export function getTokenByValue(tokenValue) {
 
 export function getActiveToken(guildId) {
   return db.prepare(
-    'SELECT * FROM tokens WHERE server_id = ? AND is_activated = 1 AND expires_at > ? ORDER BY created_at DESC LIMIT 1'
+    `SELECT * FROM tokens WHERE server_id = ? AND is_activated = 1 AND expires_at > ?
+     ORDER BY created_at DESC LIMIT 1`
   ).get(guildId, new Date().toISOString());
-}
-
-export function getLatestToken(guildId) {
-  return db.prepare(
-    'SELECT * FROM tokens WHERE server_id = ? ORDER BY created_at DESC LIMIT 1'
-  ).get(guildId);
 }
 
 export function activateToken(tokenId, guildId) {
@@ -125,43 +170,44 @@ export function activateToken(tokenId, guildId) {
   db.prepare('UPDATE servers SET active_token_id = ?, is_active = 0 WHERE id = ?').run(tokenId, guildId);
 }
 
+export function incrementSteamUses(tokenId) {
+  db.prepare('UPDATE tokens SET steam_uses = steam_uses + 1 WHERE id = ?').run(tokenId);
+}
+
 export function isServerAuthorized(guildId) {
   const server = getServer(guildId);
   if (!server) return false;
   if (server.is_active) return true;
-
   const token = getActiveToken(guildId);
-  if (token && new Date(token.expires_at) > new Date()) return true;
-
-  return false;
+  return !!(token && new Date(token.expires_at) > new Date());
 }
 
 export function isFreeTierServer(guildId) {
   const server = getServer(guildId);
   if (!server) return false;
-
   if (server.is_active) return false;
-
   const token = getActiveToken(guildId);
   if (token && new Date(token.expires_at) > new Date()) {
     return token.is_free_tier === 1;
   }
-
   return false;
 }
 
+export function getFreeTierInviteLink(guildId) {
+  const token = getActiveToken(guildId);
+  return token?.invite_link || process.env.BOT_OWNER_SERVER_INVITE || null;
+}
+
+// ─── Logs ─────────────────────────────────────────────────────
 export function addLog(serverId, action, details) {
-  db.prepare(
-    'INSERT INTO logs (server_id, action, details) VALUES (?, ?, ?)'
-  ).run(serverId, action, details || '');
+  db.prepare('INSERT INTO logs (server_id, action, details) VALUES (?, ?, ?)').run(serverId, action, details || '');
 }
 
 export function getLogs(serverId, limit = 50) {
-  return db.prepare(
-    'SELECT * FROM logs WHERE server_id = ? ORDER BY id DESC LIMIT ?'
-  ).all(serverId, limit);
+  return db.prepare('SELECT * FROM logs WHERE server_id = ? ORDER BY id DESC LIMIT ?').all(serverId, limit);
 }
 
+// ─── Allowed Users ────────────────────────────────────────────
 export function isUserAllowed(guildId, userId) {
   return !!db.prepare('SELECT 1 FROM allowed_users WHERE server_id = ? AND user_id = ?').get(guildId, userId);
 }
@@ -176,8 +222,4 @@ export function removeAllowedUser(guildId, userId) {
 
 export function getAllowedUsers(guildId) {
   return db.prepare('SELECT user_id FROM allowed_users WHERE server_id = ?').all(guildId).map(r => r.user_id);
-}
-
-export function removeServer(guildId) {
-  db.prepare('DELETE FROM servers WHERE id = ?').run(guildId);
 }

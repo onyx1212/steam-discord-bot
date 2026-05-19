@@ -7,25 +7,33 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+
 <header>
   <div class="header-inner">
     <div class="brand">🎮 <span>Steam Bot</span> <small>Dashboard</small></div>
     <div class="header-actions">
+      <div class="refresh-status" id="refreshStatus">
+        <span class="pulse-dot"></span>
+        <span id="countdown">تحديث في 15ث</span>
+      </div>
       <span id="headerUser" class="user-badge"></span>
-      <button class="btn-ghost" onclick="logout()">تسجيل الخروج</button>
+      <button class="btn-ghost btn-sm" onclick="logout()">خروج</button>
     </div>
   </div>
 </header>
 
 <main>
   <div class="page-header">
-    <h2>السيرفرات</h2>
-    <button class="btn-primary" onclick="loadServers()">🔄 تحديث</button>
+    <div>
+      <h2>السيرفرات</h2>
+      <p class="subtitle" id="serverCount">جاري التحميل...</p>
+    </div>
+    <button class="btn-primary btn-sm" onclick="loadServers(true)">🔄 تحديث الآن</button>
   </div>
   <div id="servers" class="servers-grid"></div>
 </main>
 
-<!-- Token Modal -->
+<!-- ══════════ Token Modal ══════════ -->
 <div class="modal-overlay" id="tokenModal">
   <div class="modal">
     <div class="modal-header">
@@ -34,32 +42,43 @@
     </div>
     <div class="modal-body">
       <p class="modal-server-name" id="tokenServerName"></p>
+
+      <label class="field-label">⏰ مدة التوكن</label>
       <div class="row3">
+        <div class="form-group"><label>أيام</label><input type="number" id="tDays" min="0" max="365" value="0"></div>
+        <div class="form-group"><label>ساعات</label><input type="number" id="tHours" min="0" max="23" value="0"></div>
+        <div class="form-group"><label>دقائق</label><input type="number" id="tMinutes" min="0" max="59" value="0"></div>
+      </div>
+
+      <label class="field-label">🔗 رابط الدعوة (للإعلانات في Free Tier)</label>
+      <div class="input-apply-row">
+        <input type="url" id="tInviteLink" placeholder="https://discord.gg/..." dir="ltr">
+      </div>
+
+      <div class="row2" style="margin-top:14px">
         <div class="form-group">
-          <label>أيام</label>
-          <input type="number" id="tDays" min="0" max="365" value="0" placeholder="0">
+          <label>⏱ حد /here (أدنى دقائق، 0 = بلا حد)</label>
+          <input type="number" id="tHereMin" min="0" max="1440" value="0" placeholder="0">
         </div>
         <div class="form-group">
-          <label>ساعات</label>
-          <input type="number" id="tHours" min="0" max="23" value="0" placeholder="0">
-        </div>
-        <div class="form-group">
-          <label>دقائق</label>
-          <input type="number" id="tMinutes" min="0" max="59" value="0" placeholder="0">
+          <label>🔍 حد /steam (عدد مرات، 0 = بلا حد)</label>
+          <input type="number" id="tSteamLimit" min="0" value="0" placeholder="0">
         </div>
       </div>
-      <div class="checkbox-row">
+
+      <div class="checkbox-row" style="margin-top:14px">
         <input type="checkbox" id="tFreeTier">
         <label for="tFreeTier">
           <span class="badge badge-free">Free Tier</span>
           يُرفق إعلان مع كل نشر + نظام تحذيرات (6 تحذيرات ثم إيقاف)
         </label>
       </div>
+
       <div id="tokenResult" class="token-result" style="display:none">
-        <p class="token-label">✅ التوكن الجديد (تم إرساله لروم الداشبورد تلقائياً):</p>
+        <p class="token-label">✅ تم الإنشاء — أُرسل التوكن لروم الداشبورد تلقائياً</p>
         <div class="token-box">
           <code id="tokenValue"></code>
-          <button class="btn-copy" onclick="copyToken()">نسخ</button>
+          <button class="btn-copy" onclick="copyToken()">📋</button>
         </div>
         <p class="token-expires" id="tokenExpires"></p>
       </div>
@@ -71,7 +90,7 @@
   </div>
 </div>
 
-<!-- Logs Modal -->
+<!-- ══════════ Logs Modal ══════════ -->
 <div class="modal-overlay" id="logsModal">
   <div class="modal modal-wide">
     <div class="modal-header">
@@ -93,7 +112,7 @@
   </div>
 </div>
 
-<!-- Permissions Modal -->
+<!-- ══════════ Permissions Modal ══════════ -->
 <div class="modal-overlay" id="permModal">
   <div class="modal">
     <div class="modal-header">
@@ -103,22 +122,9 @@
     <div class="modal-body">
       <p class="modal-server-name" id="permServerName"></p>
       <div class="radio-group">
-        <label class="radio-label">
-          <input type="radio" name="perm" value="owner" checked>
-          <span>👑 الأونر فقط</span>
-        </label>
-        <label class="radio-label">
-          <input type="radio" name="perm" value="everyone">
-          <span>🌍 الجميع</span>
-        </label>
-        <label class="radio-label">
-          <input type="radio" name="perm" value="specific">
-          <span>👥 مستخدمون محددون</span>
-        </label>
-      </div>
-      <div id="specificUsers" style="display:none; margin-top:16px">
-        <label>Discord User IDs (واحد في كل سطر)</label>
-        <textarea id="userIds" rows="4" placeholder="123456789012345678&#10;987654321098765432" style="width:100%;background:#1e1e2e;border:1px solid #2a2a3f;border-radius:8px;color:#e5e7eb;padding:10px;font-size:13px;direction:ltr;resize:vertical"></textarea>
+        <label class="radio-label"><input type="radio" name="perm" value="owner"> <span>👑 الأونر فقط (افتراضي)</span></label>
+        <label class="radio-label"><input type="radio" name="perm" value="everyone"> <span>🌍 الجميع</span></label>
+        <label class="radio-label"><input type="radio" name="perm" value="specific"> <span>👥 مستخدمون محددون</span></label>
       </div>
     </div>
     <div class="modal-footer">
@@ -128,70 +134,166 @@
   </div>
 </div>
 
+<!-- ══════════ Invite Modal ══════════ -->
+<div class="modal-overlay" id="inviteModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>🔗 رابط دعوة السيرفر</h3>
+      <button class="modal-close" onclick="closeModal('inviteModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="modal-server-name" id="inviteServerName"></p>
+      <p style="color:#9ca3af;font-size:13px;margin-bottom:16px">اضغط "توليد رابط" حتى يُنشئ البوت رابط دعوة مؤقت (24 ساعة، 5 استخدامات)</p>
+      <div id="inviteResult" class="token-result" style="display:none">
+        <p class="token-label">🔗 رابط الدعوة:</p>
+        <div class="token-box">
+          <code id="inviteUrl" dir="ltr"></code>
+          <button class="btn-copy" onclick="copyInvite()">📋</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-primary" onclick="generateInvite()" id="inviteBtn">توليد رابط</button>
+      <button class="btn-ghost" onclick="closeModal('inviteModal')">إغلاق</button>
+    </div>
+  </div>
+</div>
+
 <!-- Toast -->
 <div id="toast" class="toast"></div>
 
 <script>
 let currentServerId = null;
+let currentServerName = '';
+let countdownVal = 15;
+let countdownTimer = null;
+let sseSource = null;
 
+// ─── Init ──────────────────────────────────────────────────────
 async function init() {
   const me = await fetch('/api/me').then(r => r.json()).catch(() => null);
   if (!me || me.error) { window.location.href = '/login.html'; return; }
   document.getElementById('headerUser').textContent = '👤 ' + me.username;
-  loadServers();
+  connectSSE();
+  loadServers(true);
 }
 
-async function loadServers() {
-  const grid = document.getElementById('servers');
-  grid.innerHTML = '<div class="loading">⏳ جاري التحميل...</div>';
+// ─── SSE real-time ────────────────────────────────────────────
+function connectSSE() {
+  sseSource = new EventSource('/api/events');
+  sseSource.onmessage = e => {
+    try {
+      const servers = JSON.parse(e.data);
+      renderServers(servers);
+      resetCountdown();
+    } catch {}
+  };
+  sseSource.onerror = () => {
+    sseSource.close();
+    setTimeout(connectSSE, 5000);
+  };
+}
+
+function resetCountdown() {
+  countdownVal = 15;
+  if (countdownTimer) clearInterval(countdownTimer);
+  countdownTimer = setInterval(() => {
+    countdownVal--;
+    document.getElementById('countdown').textContent = `تحديث في ${countdownVal}ث`;
+    if (countdownVal <= 0) countdownVal = 15;
+  }, 1000);
+}
+
+// ─── Load Servers ─────────────────────────────────────────────
+async function loadServers(showLoading = false) {
+  if (showLoading) document.getElementById('servers').innerHTML = '<div class="loading">⏳ جاري التحميل...</div>';
   const servers = await fetch('/api/servers').then(r => r.json()).catch(() => []);
-  if (!servers.length) { grid.innerHTML = '<div class="empty">لا يوجد سيرفرات</div>'; return; }
-  grid.innerHTML = servers.map(s => renderCard(s)).join('');
+  renderServers(servers);
+}
+
+function renderServers(servers) {
+  const online = servers.filter(s => s.online).length;
+  document.getElementById('serverCount').textContent =
+    `${servers.length} سيرفر | ${online} متصل الآن`;
+  if (!servers.length) {
+    document.getElementById('servers').innerHTML = '<div class="empty">لا يوجد سيرفرات مسجّلة</div>';
+    return;
+  }
+  document.getElementById('servers').innerHTML = servers.map(s => renderCard(s)).join('');
 }
 
 function renderCard(s) {
-  const statusClass = s.is_active ? 'active' : (s.active_token ? 'token-active' : 'inactive');
-  const statusText = s.is_active ? 'مفعّل يدوياً' : (s.active_token ? 'توكن نشط' : 'غير مفعّل');
-  const statusIcon = s.is_active ? '✅' : (s.active_token ? '🔑' : '🔒');
-  const toggleLabel = s.is_active ? 'تعطيل' : 'تفعيل يدوي';
+  const hasToken = s.active_token && new Date(s.active_token.expires_at) > new Date();
+  const statusClass = s.is_active ? 'status-manual' : (hasToken ? 'status-token' : 'status-off');
+  const statusText  = s.is_active ? '✅ يدوي' : (hasToken ? '🔑 توكن' : '🔒 غير مفعّل');
+
+  let tokenInfo = '';
+  if (hasToken) {
+    const t = s.active_token;
+    const exp = new Date(t.expires_at).toLocaleDateString('ar-SA');
+    tokenInfo += `<div class="info-row"><span>⏰ ينتهي</span><span>${exp}</span></div>`;
+    tokenInfo += `<div class="info-row"><span>📋 النوع</span><span class="badge ${t.is_free_tier ? 'badge-free' : 'badge-pro'}">${t.is_free_tier ? 'Free' : 'Pro'}</span></div>`;
+    if (t.here_min_interval > 0) tokenInfo += `<div class="info-row"><span>⏱ /here أدنى</span><span>${t.here_min_interval} د</span></div>`;
+    if (t.steam_limit > 0) {
+      const ratio = t.steam_uses + '/' + t.steam_limit;
+      const cls = t.steam_uses >= t.steam_limit ? 'warn-red' : t.steam_uses >= t.steam_limit * 0.8 ? 'warn-yellow' : '';
+      tokenInfo += `<div class="info-row"><span>🔍 /steam</span><span class="${cls}">${ratio}</span></div>`;
+    }
+  } else {
+    tokenInfo = `<div class="info-row muted"><span>لا يوجد توكن نشط</span></div>`;
+  }
+
+  const warnClass = s.warning_count >= 6 ? 'warn-red' : s.warning_count >= 3 ? 'warn-yellow' : '';
   const toggleClass = s.is_active ? 'btn-danger' : 'btn-success';
+  const toggleLabel = s.is_active ? '⛔ تعطيل' : '✅ تفعيل';
 
-  const tokenInfo = s.active_token
-    ? `<div class="info-row"><span>⏰ التوكن ينتهي:</span> <span>${new Date(s.active_token.expires_at).toLocaleString('ar-SA')}</span></div>
-       <div class="info-row"><span>📋 النوع:</span> <span class="badge ${s.active_token.is_free_tier ? 'badge-free' : 'badge-pro'}">${s.active_token.is_free_tier ? 'Free Tier' : 'Premium'}</span></div>`
-    : `<div class="info-row muted"><span>لا يوجد توكن نشط</span></div>`;
-
-  const warnColor = s.warning_count >= 6 ? 'warn-red' : s.warning_count >= 3 ? 'warn-yellow' : '';
+  const iconHtml = s.icon
+    ? `<img src="https://cdn.discordapp.com/icons/${s.id}/${s.icon}.png?size=64" onerror="this.style.display='none';this.nextSibling.style.display='flex'"><span class="icon-fallback" style="display:none">🎮</span>`
+    : `<span class="icon-fallback">🎮</span>`;
 
   return `
-  <div class="server-card">
+  <div class="server-card ${!s.online ? 'card-offline' : ''}">
     <div class="card-header">
-      <div class="server-icon">${s.icon ? `<img src="https://cdn.discordapp.com/icons/${s.id}/${s.icon}.png?size=64" onerror="this.style.display='none';this.nextSibling.style.display='flex'"><span class="icon-fallback" style="display:none">🎮</span>` : '<span class="icon-fallback">🎮</span>'}</div>
+      <div class="server-icon">${iconHtml}</div>
       <div class="server-info">
         <div class="server-name">${esc(s.name)}</div>
-        <div class="server-meta">${s.member_count} عضو ${s.online ? '• <span class="dot-green">●</span> متصل' : '• <span class="dot-gray">●</span> غير متصل'}</div>
+        <div class="server-meta">
+          ${s.member_count} عضو &nbsp;
+          ${s.online ? '<span class="dot-green">●</span> متصل' : '<span class="dot-gray">●</span> غير متصل'}
+        </div>
       </div>
-      <div class="status-badge ${statusClass}">${statusIcon} ${statusText}</div>
+      <div class="status-chip ${statusClass}">${statusText}</div>
     </div>
 
     <div class="card-body">
       ${tokenInfo}
       <div class="info-row">
-        <span>⚠️ التحذيرات:</span>
-        <span class="${warnColor} warn-count">${s.warning_count}/6</span>
+        <span>⚠️ تحذيرات</span>
+        <span class="${warnClass} warn-count">${s.warning_count}/6</span>
+      </div>
+      <div class="info-row">
+        <span>🔐 صلاحيات</span>
+        <span>${permLabel(s.command_permission)}</span>
       </div>
     </div>
 
     <div class="card-actions">
       <button class="${toggleClass} btn-sm" onclick="toggleServer('${s.id}', ${s.is_active})">${toggleLabel}</button>
-      <button class="btn-primary btn-sm" onclick="openTokenModal('${s.id}', '${esc(s.name)}')">🔑 توكن</button>
-      <button class="btn-ghost btn-sm" onclick="openLogs('${s.id}', '${esc(s.name)}')">📋 Logs</button>
-      <button class="btn-ghost btn-sm" onclick="openPerms('${s.id}', '${esc(s.name)}', '${s.command_permission}')">🔐 صلاحيات</button>
-      ${s.warning_count > 0 ? `<button class="btn-warn btn-sm" onclick="resetWarnings('${s.id}')">🔄 صفّر التحذيرات</button>` : ''}
+      <button class="btn-primary btn-sm" onclick="openTokenModal('${s.id}','${esc(s.name)}')">🔑 توكن</button>
+      <button class="btn-ghost btn-sm" onclick="openLogs('${s.id}','${esc(s.name)}')">📋 Logs</button>
+      <button class="btn-ghost btn-sm" onclick="openPerms('${s.id}','${esc(s.name)}','${s.command_permission}')">🔐 صلاحية</button>
+      ${s.online ? `<button class="btn-ghost btn-sm" onclick="openInvite('${s.id}','${esc(s.name)}')">🔗 دعوة</button>` : ''}
+      ${s.warning_count > 0 ? `<button class="btn-warn btn-sm" onclick="resetWarnings('${s.id}')">🔄 صفّر</button>` : ''}
+      ${s.online ? `<button class="btn-danger btn-sm" onclick="kickBot('${s.id}','${esc(s.name)}')">🚪 أطرد</button>` : ''}
     </div>
   </div>`;
 }
 
+function permLabel(p) {
+  return p === 'everyone' ? '🌍 الجميع' : p === 'specific' ? '👥 محددون' : '👑 الأونر';
+}
+
+// ─── Actions ──────────────────────────────────────────────────
 async function toggleServer(id, isActive) {
   const res = await fetch(`/api/servers/${id}/toggle`, { method: 'POST' }).then(r => r.json());
   if (res.ok) { toast(res.is_active ? '✅ تم التفعيل' : '🔒 تم التعطيل'); loadServers(); }
@@ -199,36 +301,37 @@ async function toggleServer(id, isActive) {
 }
 
 function openTokenModal(id, name) {
-  currentServerId = id;
+  currentServerId = id; currentServerName = name;
   document.getElementById('tokenServerName').textContent = name;
   document.getElementById('tokenResult').style.display = 'none';
-  document.getElementById('tDays').value = 0;
-  document.getElementById('tHours').value = 0;
-  document.getElementById('tMinutes').value = 0;
+  ['tDays','tHours','tMinutes','tHereMin','tSteamLimit'].forEach(id => document.getElementById(id).value = 0);
+  document.getElementById('tInviteLink').value = '';
   document.getElementById('tFreeTier').checked = false;
   openModal('tokenModal');
 }
 
 async function generateToken() {
   const btn = document.getElementById('genBtn');
-  btn.disabled = true; btn.textContent = 'جاري الإنشاء...';
-  const body = {
-    days: document.getElementById('tDays').value,
-    hours: document.getElementById('tHours').value,
-    minutes: document.getElementById('tMinutes').value,
-    is_free_tier: document.getElementById('tFreeTier').checked,
-  };
+  btn.disabled = true; btn.textContent = '⏳ جاري...';
   const res = await fetch(`/api/servers/${currentServerId}/token`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      days: document.getElementById('tDays').value,
+      hours: document.getElementById('tHours').value,
+      minutes: document.getElementById('tMinutes').value,
+      invite_link: document.getElementById('tInviteLink').value,
+      here_min_interval: document.getElementById('tHereMin').value,
+      steam_limit: document.getElementById('tSteamLimit').value,
+      is_free_tier: document.getElementById('tFreeTier').checked,
+    }),
   }).then(r => r.json());
   btn.disabled = false; btn.textContent = 'إنشاء التوكن';
   if (res.ok) {
     document.getElementById('tokenValue').textContent = res.token;
     document.getElementById('tokenExpires').textContent = '⏰ ينتهي: ' + new Date(res.expires_at).toLocaleString('ar-SA');
     document.getElementById('tokenResult').style.display = 'block';
-    toast('✅ تم إنشاء التوكن وإرساله للداشبورد');
-    loadServers();
-  } else { toast('❌ ' + (res.error || 'خطأ'), 'error'); }
+    toast('✅ تم إنشاء التوكن'); loadServers();
+  } else toast('❌ ' + (res.error || 'خطأ'), 'error');
 }
 
 function copyToken() {
@@ -239,62 +342,74 @@ function copyToken() {
 async function openLogs(id, name) {
   currentServerId = id;
   document.getElementById('logsServerName').textContent = name;
-  document.getElementById('logsBody').innerHTML = '<tr><td colspan="3">⏳ جاري التحميل...</td></tr>';
+  document.getElementById('logsBody').innerHTML = '<tr><td colspan="3" class="muted" style="text-align:center;padding:20px">⏳ جاري التحميل...</td></tr>';
   openModal('logsModal');
-  const logs = await fetch(`/api/servers/${id}/logs?limit=100`).then(r => r.json());
+  const logs = await fetch(`/api/servers/${id}/logs?limit=100`).then(r => r.json()).catch(() => []);
   if (!logs.length) {
-    document.getElementById('logsBody').innerHTML = '<tr><td colspan="3" class="muted">لا يوجد سجلات</td></tr>';
+    document.getElementById('logsBody').innerHTML = '<tr><td colspan="3" class="muted" style="text-align:center;padding:20px">لا يوجد سجلات</td></tr>';
     return;
   }
   document.getElementById('logsBody').innerHTML = logs.map(l =>
-    `<tr><td>${new Date(l.created_at).toLocaleString('ar-SA')}</td><td><span class="log-action">${l.action}</span></td><td>${esc(l.details)}</td></tr>`
+    `<tr><td style="white-space:nowrap">${new Date(l.created_at).toLocaleString('ar-SA')}</td><td><span class="log-action">${esc(l.action)}</span></td><td>${esc(l.details)}</td></tr>`
   ).join('');
 }
 
 function openPerms(id, name, currentPerm) {
   currentServerId = id;
   document.getElementById('permServerName').textContent = name;
-  document.querySelectorAll('input[name="perm"]').forEach(r => { r.checked = r.value === currentPerm; });
-  const specific = document.getElementById('specificUsers');
-  specific.style.display = currentPerm === 'specific' ? 'block' : 'none';
-  document.querySelectorAll('input[name="perm"]').forEach(r => {
-    r.onchange = () => { specific.style.display = r.value === 'specific' ? 'block' : 'none'; };
-  });
+  document.querySelectorAll('input[name="perm"]').forEach(r => r.checked = r.value === currentPerm);
   openModal('permModal');
 }
 
 async function savePermissions() {
   const perm = document.querySelector('input[name="perm"]:checked').value;
   const btn = document.getElementById('permBtn');
-  btn.disabled = true; btn.textContent = 'حفظ...';
+  btn.disabled = true; btn.textContent = '⏳...';
   const res = await fetch(`/api/servers/${currentServerId}/permission`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ permission: perm }),
   }).then(r => r.json());
   btn.disabled = false; btn.textContent = 'حفظ';
-  if (res.ok) { toast('✅ تم حفظ الصلاحيات'); closeModal('permModal'); loadServers(); }
+  if (res.ok) { toast('✅ تم الحفظ'); closeModal('permModal'); loadServers(); }
   else toast('❌ ' + (res.error || 'خطأ'), 'error');
 }
 
 async function resetWarnings(id) {
-  if (!confirm('هل تريد إعادة ضبط عداد التحذيرات؟')) return;
+  if (!confirm('إعادة ضبط عداد التحذيرات؟')) return;
   const res = await fetch(`/api/servers/${id}/reset-warnings`, { method: 'POST' }).then(r => r.json());
-  if (res.ok) { toast('🔄 تم إعادة ضبط التحذيرات'); loadServers(); }
+  if (res.ok) { toast('🔄 تم إعادة الضبط'); loadServers(); }
   else toast('❌ ' + (res.error || 'خطأ'), 'error');
 }
 
-function openModal(id) { document.getElementById(id).classList.add('open'); }
-function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function openInvite(id, name) {
+  currentServerId = id;
+  document.getElementById('inviteServerName').textContent = name;
+  document.getElementById('inviteResult').style.display = 'none';
+  document.getElementById('inviteUrl').textContent = '';
+  openModal('inviteModal');
+}
 
-document.querySelectorAll('.modal-overlay').forEach(el => {
-  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
-});
+async function generateInvite() {
+  const btn = document.getElementById('inviteBtn');
+  btn.disabled = true; btn.textContent = '⏳ جاري...';
+  const res = await fetch(`/api/servers/${currentServerId}/get-invite`, { method: 'POST' }).then(r => r.json());
+  btn.disabled = false; btn.textContent = 'توليد رابط';
+  if (res.ok) {
+    document.getElementById('inviteUrl').textContent = res.invite_url;
+    document.getElementById('inviteResult').style.display = 'block';
+  } else toast('❌ ' + (res.error || 'خطأ'), 'error');
+}
 
-function toast(msg, type = 'success') {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = 'toast show' + (type === 'error' ? ' toast-error' : '');
-  setTimeout(() => t.className = 'toast', 3000);
+function copyInvite() {
+  navigator.clipboard.writeText(document.getElementById('inviteUrl').textContent);
+  toast('📋 تم نسخ الرابط');
+}
+
+async function kickBot(id, name) {
+  if (!confirm(`هل تريد إخراج البوت من سيرفر "${name}"؟`)) return;
+  const res = await fetch(`/api/servers/${id}/kick`, { method: 'POST' }).then(r => r.json());
+  if (res.ok) { toast('🚪 تم إخراج البوت'); setTimeout(loadServers, 1500); }
+  else toast('❌ ' + (res.error || 'خطأ'), 'error');
 }
 
 async function logout() {
@@ -302,8 +417,23 @@ async function logout() {
   window.location.href = '/login.html';
 }
 
-function esc(str) {
-  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+// ─── Modal helpers ────────────────────────────────────────────
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-overlay').forEach(el =>
+  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); })
+);
+
+function toast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (type === 'error' ? ' toast-error' : '');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.className = 'toast', 3000);
+}
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 init();
