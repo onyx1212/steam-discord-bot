@@ -1,19 +1,17 @@
-import { createRequire } from 'module';
+import { DatabaseSync } from 'node:sqlite';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { mkdirSync } from 'fs';
 import { randomUUID } from 'crypto';
 
-const require = createRequire(import.meta.url);
-const Database = require('better-sqlite3');
-
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, '../data');
 mkdirSync(DATA_DIR, { recursive: true });
 
-const db = new Database(join(DATA_DIR, 'bot.db'));
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+const db = new DatabaseSync(join(DATA_DIR, 'bot.db'));
+
+db.exec('PRAGMA journal_mode = WAL');
+db.exec('PRAGMA foreign_keys = ON');
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS servers (
@@ -41,8 +39,7 @@ db.exec(`
     steam_limit INTEGER DEFAULT 0,
     steam_uses INTEGER DEFAULT 0,
     created_at TEXT,
-    is_activated INTEGER DEFAULT 0,
-    FOREIGN KEY (server_id) REFERENCES servers(id)
+    is_activated INTEGER DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS logs (
@@ -62,24 +59,15 @@ db.exec(`
 `);
 
 // Migrations for existing databases
-function migrate() {
-  const tokenCols = db.prepare('PRAGMA table_info(tokens)').all().map(c => c.name);
-  if (!tokenCols.includes('here_min_interval'))
-    db.exec('ALTER TABLE tokens ADD COLUMN here_min_interval INTEGER DEFAULT 0');
-  if (!tokenCols.includes('steam_limit'))
-    db.exec('ALTER TABLE tokens ADD COLUMN steam_limit INTEGER DEFAULT 0');
-  if (!tokenCols.includes('steam_uses'))
-    db.exec('ALTER TABLE tokens ADD COLUMN steam_uses INTEGER DEFAULT 0');
-  if (!tokenCols.includes('invite_link'))
-    db.exec('ALTER TABLE tokens ADD COLUMN invite_link TEXT');
-
-  const serverCols = db.prepare('PRAGMA table_info(servers)').all().map(c => c.name);
-  if (!serverCols.includes('invite_link'))
-    db.exec('ALTER TABLE servers ADD COLUMN invite_link TEXT');
-  if (!serverCols.includes('last_seen'))
-    db.exec('ALTER TABLE servers ADD COLUMN last_seen TEXT');
+function addColIfMissing(table, col, type) {
+  try { db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`); } catch {}
 }
-migrate();
+addColIfMissing('tokens', 'here_min_interval', 'INTEGER DEFAULT 0');
+addColIfMissing('tokens', 'steam_limit', 'INTEGER DEFAULT 0');
+addColIfMissing('tokens', 'steam_uses', 'INTEGER DEFAULT 0');
+addColIfMissing('tokens', 'invite_link', 'TEXT');
+addColIfMissing('servers', 'invite_link', 'TEXT');
+addColIfMissing('servers', 'last_seen', 'TEXT');
 
 // ─── Servers ──────────────────────────────────────────────────
 export function getServer(guildId) {
@@ -94,9 +82,8 @@ export function upsertServer(guildId, name, icon) {
   const existing = getServer(guildId);
   const now = new Date().toISOString();
   if (!existing) {
-    db.prepare(
-      'INSERT INTO servers (id, name, icon, joined_at, last_seen) VALUES (?, ?, ?, ?, ?)'
-    ).run(guildId, name, icon || null, now, now);
+    db.prepare('INSERT INTO servers (id, name, icon, joined_at, last_seen) VALUES (?, ?, ?, ?, ?)')
+      .run(guildId, name, icon || null, now, now);
   } else {
     db.prepare('UPDATE servers SET name = ?, icon = ?, last_seen = ? WHERE id = ?')
       .run(name, icon || null, now, guildId);
@@ -143,14 +130,7 @@ export function createToken(serverId, expiresAt, { isFreeTier, inviteLink, hereM
   db.prepare(
     `INSERT INTO tokens (id, server_id, token, expires_at, is_free_tier, invite_link, here_min_interval, steam_limit, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(
-    id, serverId, token, expiresAt,
-    isFreeTier ? 1 : 0,
-    inviteLink || null,
-    hereMinInterval || 0,
-    steamLimit || 0,
-    new Date().toISOString()
-  );
+  ).run(id, serverId, token, expiresAt, isFreeTier ? 1 : 0, inviteLink || null, hereMinInterval || 0, steamLimit || 0, new Date().toISOString());
   return { id, token };
 }
 
@@ -187,9 +167,7 @@ export function isFreeTierServer(guildId) {
   if (!server) return false;
   if (server.is_active) return false;
   const token = getActiveToken(guildId);
-  if (token && new Date(token.expires_at) > new Date()) {
-    return token.is_free_tier === 1;
-  }
+  if (token && new Date(token.expires_at) > new Date()) return token.is_free_tier === 1;
   return false;
 }
 
