@@ -9,10 +9,10 @@ export const trackedAdMessages = new Map();
 
 const AD_INVITE = process.env.BOT_OWNER_SERVER_INVITE || 'https://discord.gg/example';
 
-export async function startScheduler(channel, intervalMinutes, guildId, isFreeTier = false) {
+export async function startScheduler(channel, intervalMinutes, guildId) {
   stopScheduler(channel.id);
 
-  console.log(`⏰ جدولة نشر في #${channel.name} كل ${intervalMinutes} دقيقة — free tier: ${isFreeTier}`);
+  console.log(`⏰ جدولة نشر في #${channel.name} كل ${intervalMinutes} دقيقة`);
 
   let games = [];
   try {
@@ -29,7 +29,7 @@ export async function startScheduler(channel, intervalMinutes, guildId, isFreeTi
   }
 
   games = games.sort(() => Math.random() - 0.5);
-  const state = { games, index: 0, guildId, isFreeTier };
+  const state = { games, index: 0, guildId };
 
   await postNextGame(channel, state);
 
@@ -98,16 +98,14 @@ async function postNextGame(channel, state) {
 
       console.log(`✅ تم نشر: ${game}${tiktokData ? ' + مقطع TikTok' : ''}`);
 
-      if (state.isFreeTier) {
-        const adText =
-          `📢 **هذه الحسابات مقدمة مجاناً**\n` +
-          `💎 للوصول لقاعدة بيانات أكبر بدون إعلانات، احصل على توكن مميز!\n` +
-          `🔗 **انضم لسيرفرنا:** ${AD_INVITE}`;
+      // Always send ad with every post
+      const adText =
+        `📢 **هذه الحسابات مقدمة مجاناً من بوتنا**\n` +
+        `🔗 **انضم لسيرفرنا للمزيد:** ${AD_INVITE}`;
 
-        const adMsg = await channel.send(adText);
-        trackedAdMessages.set(adMsg.id, state.guildId);
-        console.log(`📢 تم إرسال إعلان free tier — message id: ${adMsg.id}`);
-      }
+      const adMsg = await channel.send(adText);
+      trackedAdMessages.set(adMsg.id, state.guildId);
+      console.log(`📢 تم إرسال الإعلان — message id: ${adMsg.id}`);
 
       return;
     } catch (err) {
