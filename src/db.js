@@ -36,6 +36,8 @@ db.exec(`
     here_min_interval INTEGER DEFAULT 0,
     steam_limit INTEGER DEFAULT 0,
     label TEXT,
+    is_free_tier INTEGER DEFAULT 0,
+    disabled INTEGER DEFAULT 0,
     created_at TEXT
   );
 
@@ -73,6 +75,8 @@ addColIfMissing('servers', 'last_seen', 'TEXT');
 addColIfMissing('tokens', 'label', 'TEXT');
 addColIfMissing('tokens', 'here_min_interval', 'INTEGER DEFAULT 0');
 addColIfMissing('tokens', 'steam_limit', 'INTEGER DEFAULT 0');
+addColIfMissing('tokens', 'is_free_tier', 'INTEGER DEFAULT 0');
+addColIfMissing('tokens', 'disabled', 'INTEGER DEFAULT 0');
 
 // ─── Servers ──────────────────────────────────────────────────
 export function getServer(guildId) {
@@ -135,22 +139,29 @@ export function removeServer(guildId) {
 }
 
 // ─── Tokens (Global — not bound to a specific server) ─────────
-export function createToken({ label = '', expiresAt, hereMinInterval = 0, steamLimit = 0 }) {
+export function createToken({ label = '', expiresAt, hereMinInterval = 0, steamLimit = 0, isFreeTier = false }) {
   const id = randomUUID();
   const token = randomUUID().replace(/-/g, '') + randomUUID().replace(/-/g, '');
   db.prepare(
-    `INSERT INTO tokens (id, token, expires_at, here_min_interval, steam_limit, label, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, token, expiresAt, hereMinInterval || 0, steamLimit || 0, label || '', new Date().toISOString());
+    `INSERT INTO tokens (id, token, expires_at, here_min_interval, steam_limit, label, is_free_tier, disabled, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`
+  ).run(id, token, expiresAt, hereMinInterval || 0, steamLimit || 0, label || '', isFreeTier ? 1 : 0, new Date().toISOString());
   return { id, token };
 }
 
 export function getAllTokens() {
-  return db.prepare('SELECT * FROM tokens ORDER BY created_at DESC').all();
+  return db.prepare(`
+    SELECT t.*,
+      (SELECT server_id FROM server_tokens WHERE token_id = t.id LIMIT 1) AS used_by_server_id,
+      (SELECT activated_at FROM server_tokens WHERE token_id = t.id LIMIT 1) AS used_at,
+      (SELECT steam_uses FROM server_tokens WHERE token_id = t.id LIMIT 1) AS used_steam_uses
+    FROM tokens t
+    ORDER BY t.created_at DESC
+  `).all();
 }
 
 export function getTokenByValue(tokenValue) {
-  return db.prepare('SELECT * FROM tokens WHERE token = ?').get(tokenValue);
+  return db.prepare('SELECT * FROM tokens WHERE token = ? AND disabled = 0').get(tokenValue);
 }
 
 export function getServerToken(guildId) {
@@ -158,7 +169,7 @@ export function getServerToken(guildId) {
     SELECT t.*, st.activated_at, st.steam_uses AS server_steam_uses, st.id AS st_id
     FROM server_tokens st
     JOIN tokens t ON t.id = st.token_id
-    WHERE st.server_id = ? AND t.expires_at > ?
+    WHERE st.server_id = ? AND t.expires_at > ? AND t.disabled = 0
     ORDER BY st.activated_at DESC LIMIT 1
   `).get(guildId, new Date().toISOString());
 }
@@ -177,11 +188,20 @@ export function activateToken(tokenId, guildId) {
   return { ok: true };
 }
 
+export function deleteToken(tokenId) {
+  db.prepare('DELETE FROM server_tokens WHERE token_id = ?').run(tokenId);
+  db.prepare('DELETE FROM tokens WHERE id = ?').run(tokenId);
+}
+
+export function setTokenDisabled(tokenId, disabled) {
+  db.prepare('UPDATE tokens SET disabled = ? WHERE id = ?').run(disabled ? 1 : 0, tokenId);
+}
+
 export function incrementSteamUses(guildId) {
   const st = db.prepare(`
     SELECT st.id FROM server_tokens st
     JOIN tokens t ON t.id = st.token_id
-    WHERE st.server_id = ? AND t.expires_at > ?
+    WHERE st.server_id = ? AND t.expires_at > ? AND t.disabled = 0
     ORDER BY st.activated_at DESC LIMIT 1
   `).get(guildId, new Date().toISOString());
   if (st) {
@@ -206,11 +226,20 @@ export function isFreeTierActive(guildId) {
   return !!(server.free_tier_expires_at && new Date(server.free_tier_expires_at) > new Date());
 }
 
+export function shouldSendAd(guildId) {
+  const server = getServer(guildId);
+  if (!server) return false;
+  const token = getServerToken(guildId);
+  if (token) return token.is_free_tier === 1;
+  if (server.free_tier_expires_at && new Date(server.free_tier_expires_at) > new Date()) return true;
+  return false;
+}
+
 export function getSteamLimitInfo(guildId) {
   const st = db.prepare(`
     SELECT t.steam_limit, st.steam_uses FROM server_tokens st
     JOIN tokens t ON t.id = st.token_id
-    WHERE st.server_id = ? AND t.expires_at > ?
+    WHERE st.server_id = ? AND t.expires_at > ? AND t.disabled = 0
     ORDER BY st.activated_at DESC LIMIT 1
   `).get(guildId, new Date().toISOString());
   return { limit: st?.steam_limit || 0, uses: st?.steam_uses || 0 };
