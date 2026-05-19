@@ -43,49 +43,48 @@
     <div class="modal-body">
       <p class="modal-server-name" id="tokenServerName"></p>
 
-      <label class="field-label">⏰ مدة التوكن</label>
-      <div class="row3">
-        <div class="form-group"><label>أيام</label><input type="number" id="tDays" min="0" max="365" value="0"></div>
-        <div class="form-group"><label>ساعات</label><input type="number" id="tHours" min="0" max="23" value="0"></div>
-        <div class="form-group"><label>دقائق</label><input type="number" id="tMinutes" min="0" max="59" value="0"></div>
-      </div>
-
-      <label class="field-label">🔗 رابط الدعوة (للإعلانات في Free Tier)</label>
-      <div class="input-apply-row">
-        <input type="url" id="tInviteLink" placeholder="https://discord.gg/..." dir="ltr">
-      </div>
-
-      <div class="row2" style="margin-top:14px">
-        <div class="form-group">
-          <label>⏱ حد /here (أدنى دقائق، 0 = بلا حد)</label>
-          <input type="number" id="tHereMin" min="0" max="1440" value="0" placeholder="0">
+      <div id="tokenForm">
+        <label class="field-label">⏰ مدة التوكن</label>
+        <div class="row3">
+          <div class="form-group"><label>أيام</label><input type="number" id="tDays" min="0" max="365" value="0"></div>
+          <div class="form-group"><label>ساعات</label><input type="number" id="tHours" min="0" max="23" value="0"></div>
+          <div class="form-group"><label>دقائق</label><input type="number" id="tMinutes" min="0" max="59" value="0"></div>
         </div>
-        <div class="form-group">
-          <label>🔍 حد /steam (عدد مرات، 0 = بلا حد)</label>
-          <input type="number" id="tSteamLimit" min="0" value="0" placeholder="0">
-        </div>
-      </div>
 
-      <div class="checkbox-row" style="margin-top:14px">
-        <input type="checkbox" id="tFreeTier">
-        <label for="tFreeTier">
-          <span class="badge badge-free">Free Tier</span>
-          يُرفق إعلان مع كل نشر + نظام تحذيرات (6 تحذيرات ثم إيقاف)
-        </label>
+        <div class="row2" style="margin-top:14px">
+          <div class="form-group">
+            <label>⏱ حد /here (أدنى دقائق، 0 = بلا حد)</label>
+            <input type="number" id="tHereMin" min="0" max="1440" value="0" placeholder="0">
+          </div>
+          <div class="form-group">
+            <label>🔍 حد /steam (عدد مرات، 0 = بلا حد)</label>
+            <input type="number" id="tSteamLimit" min="0" value="0" placeholder="0">
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-top:14px">
+          <label>🏷️ تسمية للتوكن (اختياري)</label>
+          <input type="text" id="tLabel" placeholder="مثال: سيرفر ألفا / شهر مارس" maxlength="60">
+        </div>
       </div>
 
       <div id="tokenResult" class="token-result" style="display:none">
-        <p class="token-label">✅ تم الإنشاء — أُرسل التوكن لروم الداشبورد تلقائياً</p>
+        <p class="token-label">✅ تم إنشاء التوكن بنجاح</p>
+        <p style="color:#9ca3af;font-size:12px;margin-bottom:8px">⚠️ هذا التوكن لشخص واحد فقط — لا يمكن استخدامه مرتين</p>
         <div class="token-box">
-          <code id="tokenValue"></code>
+          <code id="tokenValue" dir="ltr" style="word-break:break-all;font-size:11px"></code>
           <button class="btn-copy" onclick="copyToken()">📋</button>
         </div>
         <p class="token-expires" id="tokenExpires"></p>
+        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-primary btn-sm" onclick="sendTokenToServer()" id="sendTokenBtn">📤 أرسل للسيرفر الحالي</button>
+          <button class="btn-ghost btn-sm" onclick="resetTokenForm()">➕ إنشاء توكن جديد</button>
+        </div>
       </div>
     </div>
-    <div class="modal-footer">
+    <div class="modal-footer" id="tokenFooter">
       <button class="btn-primary" onclick="generateToken()" id="genBtn">إنشاء التوكن</button>
-      <button class="btn-ghost" onclick="closeModal('tokenModal')">إلغاء</button>
+      <button class="btn-ghost" onclick="closeModal('tokenModal')">إغلاق</button>
     </div>
   </div>
 </div>
@@ -302,41 +301,72 @@ async function toggleServer(id, isActive) {
 
 function openTokenModal(id, name) {
   currentServerId = id; currentServerName = name;
-  document.getElementById('tokenServerName').textContent = name;
-  document.getElementById('tokenResult').style.display = 'none';
-  ['tDays','tHours','tMinutes','tHereMin','tSteamLimit'].forEach(id => document.getElementById(id).value = 0);
-  document.getElementById('tInviteLink').value = '';
-  document.getElementById('tFreeTier').checked = false;
+  document.getElementById('tokenServerName').textContent = '🖥️ السيرفر: ' + name;
+  resetTokenForm();
   openModal('tokenModal');
 }
 
+function resetTokenForm() {
+  document.getElementById('tokenResult').style.display = 'none';
+  document.getElementById('tokenForm').style.display = 'block';
+  document.getElementById('tokenFooter').style.display = 'flex';
+  ['tDays','tHours','tMinutes','tHereMin','tSteamLimit'].forEach(fid => document.getElementById(fid).value = 0);
+  document.getElementById('tLabel').value = '';
+}
+
 async function generateToken() {
+  const days    = Number(document.getElementById('tDays').value)    || 0;
+  const hours   = Number(document.getElementById('tHours').value)   || 0;
+  const minutes = Number(document.getElementById('tMinutes').value) || 0;
+  if (days + hours + minutes === 0) {
+    toast('❌ يجب تحديد مدة أكبر من صفر', 'error'); return;
+  }
   const btn = document.getElementById('genBtn');
   btn.disabled = true; btn.textContent = '⏳ جاري...';
-  const res = await fetch(`/api/servers/${currentServerId}/token`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
+  const res = await fetch('/api/tokens', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      days: document.getElementById('tDays').value,
-      hours: document.getElementById('tHours').value,
-      minutes: document.getElementById('tMinutes').value,
-      invite_link: document.getElementById('tInviteLink').value,
-      here_min_interval: document.getElementById('tHereMin').value,
-      steam_limit: document.getElementById('tSteamLimit').value,
-      is_free_tier: document.getElementById('tFreeTier').checked,
+      days,
+      hours,
+      minutes,
+      label:             document.getElementById('tLabel').value.trim(),
+      here_min_interval: Number(document.getElementById('tHereMin').value)    || 0,
+      steam_limit:       Number(document.getElementById('tSteamLimit').value) || 0,
     }),
-  }).then(r => r.json());
+  }).then(r => r.json()).catch(() => ({ error: 'خطأ في الاتصال' }));
   btn.disabled = false; btn.textContent = 'إنشاء التوكن';
   if (res.ok) {
     document.getElementById('tokenValue').textContent = res.token;
     document.getElementById('tokenExpires').textContent = '⏰ ينتهي: ' + new Date(res.expires_at).toLocaleString('ar-SA');
+    document.getElementById('tokenForm').style.display = 'none';
+    document.getElementById('tokenFooter').style.display = 'none';
     document.getElementById('tokenResult').style.display = 'block';
-    toast('✅ تم إنشاء التوكن'); loadServers();
-  } else toast('❌ ' + (res.error || 'خطأ'), 'error');
+    toast('✅ تم إنشاء التوكن');
+    loadServers();
+  } else {
+    toast('❌ ' + (res.error || 'خطأ'), 'error');
+  }
 }
 
 function copyToken() {
-  navigator.clipboard.writeText(document.getElementById('tokenValue').textContent);
-  toast('📋 تم النسخ');
+  const val = document.getElementById('tokenValue').textContent;
+  navigator.clipboard.writeText(val).then(() => toast('📋 تم النسخ'));
+}
+
+async function sendTokenToServer() {
+  const token = document.getElementById('tokenValue').textContent;
+  if (!token || !currentServerId) return;
+  const btn = document.getElementById('sendTokenBtn');
+  btn.disabled = true; btn.textContent = '⏳ جاري الإرسال...';
+  const res = await fetch('/api/tokens/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, server_id: currentServerId }),
+  }).then(r => r.json()).catch(() => ({ error: 'خطأ في الاتصال' }));
+  btn.disabled = false; btn.textContent = '📤 أرسل للسيرفر الحالي';
+  if (res.ok) toast('✅ تم إرسال التوكن لروم الداشبورد في السيرفر');
+  else toast('❌ ' + (res.error || 'خطأ في الإرسال'), 'error');
 }
 
 async function openLogs(id, name) {
