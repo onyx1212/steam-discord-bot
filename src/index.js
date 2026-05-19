@@ -14,32 +14,18 @@ import { searchGame } from './search.js';
 import { startScheduler, stopScheduler, trackedAdMessages } from './scheduler.js';
 import { startDashboard } from './dashboard.js';
 import {
-  upsertServer,
-  setDashboardChannel,
-  setSetupChannel,
-  setHereDefaultInterval,
-  setCommandPermission,
-  getServer,
-  isServerAuthorized,
-  shouldSendAd,
-  isPaidPlan,
-  addLog,
-  getTokenByValue,
-  getServerToken,
-  activateToken,
-  incrementWarning,
-  incrementSteamUses,
-  setServerActive,
-  isUserAllowed,
-  updateLastSeen,
-  autoActivateFreeTier,
-  getSteamLimitInfo,
-  getHereMinInterval,
+  upsertServer, setDashboardChannel, setSetupChannel,
+  setHereDefaultInterval, setCommandPermission,
+  getServer, isServerAuthorized, shouldSendAd, isPaidPlan,
+  addLog, getTokenByValue, getServerToken, activateToken,
+  incrementWarning, incrementSteamUses, incrementFreeTierSteamUses,
+  setServerActive, isUserAllowed, updateLastSeen,
+  autoActivateFreeTier, getSteamLimitInfo, getHereMinInterval,
+  getSetting,
 } from './db.js';
 
 const token = process.env.DISCORD_TOKEN;
 export const BOT_OWNER_ID = process.env.BOT_OWNER_DISCORD_ID || '';
-const AD_INVITE = process.env.BOT_OWNER_SERVER_INVITE || 'https://discord.gg/example';
 
 if (!token) { console.error('❌ DISCORD_TOKEN غير موجود'); process.exit(1); }
 if (!process.env.GROQ_API_KEY) { console.error('❌ GROQ_API_KEY غير موجود'); process.exit(1); }
@@ -55,7 +41,7 @@ const commands = [
     .addStringOption(o => o.setName('game').setDescription('اسم اللعبة').setRequired(true)),
   new SlashCommandBuilder()
     .setName('here')
-    .setDescription('يبدأ البوت ينشر حسابات Steam مع فيديو TikTok كل فترة')
+    .setDescription('يبدأ البوت ينشر حسابات Steam كل فترة')
     .addIntegerOption(o =>
       o.setName('min').setDescription('كم دقيقة بين كل نشر (اتركه فارغاً لاستخدام الافتراضي)')
         .setRequired(false).setMinValue(1).setMaxValue(1440)
@@ -73,6 +59,8 @@ const commands = [
 ].map(cmd => cmd.toJSON());
 
 // ─── Helpers ──────────────────────────────────────────────────
+function adInvite() { return getSetting('ad_invite', process.env.BOT_OWNER_SERVER_INVITE || 'https://discord.gg/example'); }
+
 async function canUseCommands(interaction) {
   if (!interaction.guild) return false;
   if (BOT_OWNER_ID && interaction.user.id === BOT_OWNER_ID) return true;
@@ -106,7 +94,7 @@ function permLabel(p) {
 }
 
 // ─── Settings Panel ────────────────────────────────────────────
-async function sendSettingsPanel(channel, guildId, forceRefresh = false) {
+async function sendSettingsPanel(channel, guildId) {
   const server = getServer(guildId);
   const plan   = planLabel(guildId);
   const isPaid = plan.isPaid;
@@ -121,7 +109,7 @@ async function sendSettingsPanel(channel, guildId, forceRefresh = false) {
     .addFields(
       {
         name: '🔐 من يقدر يستخدم الأوامر',
-        value: `الإعداد الحالي: **${permLabel(perm)}**\n${isPaid ? '✅ يمكنك التعديل' : '✅ يمكنك التعديل'}`,
+        value: `الإعداد الحالي: **${permLabel(perm)}**\n✅ يمكنك التعديل دائماً`,
         inline: false,
       },
       {
@@ -130,11 +118,11 @@ async function sendSettingsPanel(channel, guildId, forceRefresh = false) {
           ? `الإعداد الحالي: **${defInterval > 0 ? defInterval + ' دقيقة' : 'غير محدد'}**\n` +
             (tokenMin > 0 ? `⚠️ توكنك يفرض حداً أدنى: ${tokenMin} دقيقة\n` : '') +
             `✅ يمكنك التعديل`
-          : `الإعداد الحالي: **${defInterval > 0 ? defInterval + ' دقيقة' : 'غير محدد'}**\n🔒 **مقفل** — يحتاج توكن مدفوع للتعديل`,
+          : `الإعداد الحالي: **${defInterval > 0 ? defInterval + ' دقيقة' : 'غير محدد'}**\n🔒 **مقفل** — يحتاج توكن مدفوع`,
         inline: false,
       },
       {
-        name: '💡 كيف تستخدم البوت',
+        name: '💡 الأوامر',
         value:
           '`/steam <لعبة>` — ابحث عن حساب Steam\n' +
           '`/here [دقائق]` — نشر تلقائي\n' +
@@ -149,46 +137,43 @@ async function sendSettingsPanel(channel, guildId, forceRefresh = false) {
   if (!isPaid) {
     embed.addFields({
       name: '🛒 ترقية للخطة المدفوعة',
-      value: `تواصل مع صاحب البوت للحصول على توكن وفتح كل الميزات.\n🔗 ${AD_INVITE}`,
+      value: `تواصل مع صاحب البوت للحصول على توكن.\n🔗 ${adInvite()}`,
       inline: false,
     });
   }
 
-  // ── Select: permission (always enabled) ──
   const permRow = new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder()
       .setCustomId(`setup_perm_${guildId}`)
       .setPlaceholder('🔐 اختر من يقدر يستخدم الأوامر')
       .addOptions([
-        { label: '👑 الأونر فقط', value: 'owner',    description: 'فقط صاحب السيرفر يقدر يستخدم الأوامر', default: perm === 'owner' },
-        { label: '🌍 الجميع',    value: 'everyone', description: 'كل أعضاء السيرفر يقدرون يستخدمون الأوامر', default: perm === 'everyone' },
-        { label: '👥 محددون',    value: 'specific', description: 'فقط المستخدمون المضافون في القائمة', default: perm === 'specific' },
+        { label: '👑 الأونر فقط',  value: 'owner',    description: 'فقط صاحب السيرفر', default: perm === 'owner' },
+        { label: '🌍 الجميع',      value: 'everyone', description: 'كل الأعضاء',        default: perm === 'everyone' },
+        { label: '👥 محددون',      value: 'specific', description: 'قائمة محددة',        default: perm === 'specific' },
       ])
   );
 
-  // ── Select: here interval (locked on free tier) ──
   const intervalOptions = [
-    { label: '🚫 بدون تحديد', value: '0',   description: 'يحدد المستخدم الفترة بنفسه مع /here' },
-    { label: '5 دقائق',        value: '5',   description: 'نشر كل 5 دقائق' },
-    { label: '10 دقائق',       value: '10',  description: 'نشر كل 10 دقائق' },
-    { label: '15 دقائق',       value: '15',  description: 'نشر كل 15 دقيقة' },
-    { label: '30 دقائق',       value: '30',  description: 'نشر كل 30 دقيقة' },
-    { label: '60 دقيقة',       value: '60',  description: 'نشر كل ساعة' },
-    { label: '120 دقيقة',      value: '120', description: 'نشر كل ساعتين' },
-    { label: '180 دقيقة',      value: '180', description: 'نشر كل 3 ساعات' },
-    { label: '360 دقيقة',      value: '360', description: 'نشر كل 6 ساعات' },
+    { label: '🚫 بدون تحديد',  value: '0' },
+    { label: '5 دقائق',         value: '5' },
+    { label: '10 دقائق',        value: '10' },
+    { label: '15 دقيقة',        value: '15' },
+    { label: '30 دقيقة',        value: '30' },
+    { label: '60 دقيقة',        value: '60' },
+    { label: '120 دقيقة',       value: '120' },
+    { label: '180 دقيقة',       value: '180' },
+    { label: '360 دقيقة',       value: '360' },
   ].map(o => ({ ...o, default: String(defInterval) === o.value }));
 
   const intervalRow = new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder()
       .setCustomId(`setup_interval_${guildId}`)
-      .setPlaceholder(isPaid ? '⏱️ اختر الفترة الافتراضية لـ /here' : '🔒 مقفل — يحتاج توكن مدفوع')
+      .setPlaceholder(isPaid ? '⏱️ اختر الفترة الافتراضية' : '🔒 مقفل — يحتاج توكن مدفوع')
       .setDisabled(!isPaid)
       .addOptions(intervalOptions)
   );
 
   try {
-    // Delete old panel messages to keep channel clean
     const msgs = await channel.messages.fetch({ limit: 10 });
     const botMsgs = msgs.filter(m => m.author.id === client.user.id);
     if (botMsgs.size > 0) await channel.bulkDelete(botMsgs).catch(() => {});
@@ -199,51 +184,26 @@ async function sendSettingsPanel(channel, guildId, forceRefresh = false) {
 
 // ─── DM Tutorial ──────────────────────────────────────────────
 async function sendOwnerTutorial(owner, guildName, freeTierExpiry) {
+  const enabled = getSetting('dm_tutorial_enabled', '1');
+  if (enabled !== '1') return;
+
+  const days    = getSetting('free_tier_days', '2');
   const expDate = new Date(freeTierExpiry).toLocaleDateString('ar-SA');
-  const tutorial =
-    `# 🎮 مرحباً بك في Steam Bot!\n\n` +
-    `شكراً لإضافة البوت لسيرفر **${guildName}**! هذا شرح سريع لكل شيء:\n\n` +
+  const invite  = adInvite();
 
-    `## 🎉 الفترة المجانية\n` +
-    `تحصل الآن على **يومين مجاناً** (تنتهي: ${expDate}).\n` +
-    `بعدها تحتاج توكن مدفوع للاستمرار.\n\n` +
+  let text = getSetting('dm_tutorial_text', '');
+  if (!text) return;
 
-    `## 📋 الأوامر المتاحة\n` +
-    `\`/steam <اسم اللعبة>\`\n` +
-    `↳ يبحث عن حساب Steam للعبة ويرسله مباشرة في الشات\n\n` +
-    `\`/here <دقائق>\`\n` +
-    `↳ يبدأ نشر تلقائي لحسابات Steam مع مقاطع TikTok كل X دقيقة\n\n` +
-    `\`/stophere\`\n` +
-    `↳ يوقف النشر التلقائي في الروم الحالي\n\n` +
-    `\`/active <التوكن>\`\n` +
-    `↳ يفعّل توكن جديد للاستمرار بعد انتهاء الخطة\n\n` +
-    `\`/setup\`\n` +
-    `↳ ينشئ روم إعدادات خاص بك لضبط البوت\n\n` +
-
-    `## ⚙️ إعداد البوت\n` +
-    `اكتب \`/setup\` في أي روم وسيُنشئ البوت روماً خاصاً بك فيه:\n` +
-    `• ضبط **من يقدر يستخدم الأوامر** (أونر / الجميع / محددون)\n` +
-    `• ضبط **الفترة الافتراضية** لـ /here ← مقفل في النسخة المجانية\n\n` +
-
-    `## 📢 نظام الإعلانات\n` +
-    `في النسخة المجانية والتوكنات من نوع "Free" يُرفق إعلان مع كل رسالة Steam.\n` +
-    `⚠️ **لا تحذف رسائل الإعلان!** حذفها يعطي تحذيراً وعند 6 تحذيرات يُوقف البوت تلقائياً.\n\n` +
-
-    `## 🔑 كيف تحصل على توكن\n` +
-    `تواصل مع صاحب البوت عبر هذا الرابط للحصول على توكن:\n` +
-    `🔗 **${AD_INVITE}**\n\n` +
-    `بعد الحصول عليه اكتب في أي روم: \`/active التوكن_هنا\`\n\n` +
-
-    `## 📊 أنواع الخطط\n` +
-    `**🆓 مجاني (يومين):** كل الأوامر متاحة + إعلان مع كل رسالة\n` +
-    `**💎 مدفوع:** كل شيء + بدون إعلانات (حسب نوع التوكن) + ضبط كامل للإعدادات\n\n` +
-
-    `إذا عندك أي سؤال تواصل معنا: ${AD_INVITE} 🙌`;
+  text = text
+    .replace(/\{guild\}/g,  guildName)
+    .replace(/\{expiry\}/g, expDate)
+    .replace(/\{days\}/g,   days)
+    .replace(/\{invite\}/g, invite);
 
   try {
-    await owner.send(tutorial);
+    await owner.send(text);
   } catch (err) {
-    console.error(`❌ فشل إرسال DM للأونر ${owner.user?.tag}:`, err.message);
+    console.error(`❌ فشل إرسال DM للأونر ${owner.user?.tag || owner.tag}:`, err.message);
   }
 }
 
@@ -266,17 +226,16 @@ client.once('clientReady', async () => {
 client.on('guildCreate', async guild => {
   console.log(`📥 انضم للسيرفر: ${guild.name} (${guild.id})`);
   upsertServer(guild.id, guild.name, guild.icon);
-  const freeTierExpiry = autoActivateFreeTier(guild.id, 2);
-  addLog(guild.id, 'BOT_JOINED', `انضم البوت لسيرفر ${guild.name} — free tier لمدة يومين`);
+  const freeTierDays = Number(getSetting('free_tier_days', '2'));
+  const freeTierExpiry = autoActivateFreeTier(guild.id, freeTierDays);
+  addLog(guild.id, 'BOT_JOINED', `انضم البوت لسيرفر ${guild.name} — free tier ${freeTierDays} يوم`);
 
   try {
     const owner = await guild.fetchOwner();
-
-    // Create dashboard channel
     const dashChannel = await guild.channels.create({
       name: '🤖・dashboard',
       type: ChannelType.GuildText,
-      topic: 'لوحة تحكم البوت — مرئية للأونر فقط',
+      topic: 'لوحة تحكم البوت',
       permissionOverwrites: [
         { id: guild.roles.everyone, deny: [PermissionFlagsBits.ViewChannel] },
         { id: owner.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
@@ -284,16 +243,13 @@ client.on('guildCreate', async guild => {
       ],
     });
     setDashboardChannel(guild.id, dashChannel.id);
-
     const expiryDate = new Date(freeTierExpiry).toLocaleDateString('ar-SA');
     await dashChannel.send(
       `👋 مرحباً **${owner.user.username}**!\n\n` +
-      `🎉 **تم تفعيل البوت تلقائياً لمدة يومين مجاناً** (ينتهي: ${expiryDate})\n\n` +
+      `🎉 **تم تفعيل البوت تلقائياً لمدة ${freeTierDays} يوم** (ينتهي: ${expiryDate})\n\n` +
       `⚙️ اكتب \`/setup\` في أي روم لإنشاء روم الإعدادات الخاص بك.\n` +
       `📬 تم إرسال شرح كامل للبوت بالخاص.`
     );
-
-    // Send DM tutorial to owner
     await sendOwnerTutorial(owner, guild.name, freeTierExpiry);
   } catch (err) {
     console.error(`❌ خطأ في إعداد سيرفر ${guild.name}:`, err.message);
@@ -316,20 +272,18 @@ client.on('messageDelete', async message => {
   try {
     const guild = client.guilds.cache.get(guildId);
     if (!guild) return;
-    let warnChannel = null;
-    if (server?.dashboard_channel_id) warnChannel = guild.channels.cache.get(server.dashboard_channel_id);
+    let warnChannel = server?.dashboard_channel_id
+      ? guild.channels.cache.get(server.dashboard_channel_id)
+      : message.channel;
     if (!warnChannel) warnChannel = message.channel;
     if (count < 6) {
       await warnChannel?.send(
-        `⚠️ **تحذير ${count}/6**\n` +
-        `تم حذف رسالة الإعلان المطلوبة.\n` +
-        `عند ${6 - count} تحذير إضافي سيتوقف البوت.\n` +
-        `📞 تواصل مع صاحب البوت لإعادة الضبط.`
+        `⚠️ **تحذير ${count}/6** — تم حذف رسالة الإعلان.\n` +
+        `بعد ${6 - count} تحذير إضافي سيتوقف البوت.`
       );
     } else {
       await warnChannel?.send(
-        `🚫 **تحذير 6/6 — تم إيقاف البوت**\n` +
-        `وصلت للحد الأقصى. تواصل مع صاحب البوت لإعادة التفعيل.`
+        `🚫 **تحذير 6/6 — تم إيقاف البوت**\nتواصل مع صاحب البوت لإعادة التفعيل.`
       );
       setServerActive(guildId, false);
       stopScheduler(message.channelId);
@@ -345,49 +299,41 @@ client.on('interactionCreate', async interaction => {
   const { guildId } = interaction;
   if (!guildId) return;
 
-  // ── Component Interactions (select menus in setup channel) ──
+  // ── Select menus ────────────────────────────────────────────
   if (interaction.isStringSelectMenu()) {
-    const customId = interaction.customId;
+    const id = interaction.customId;
 
-    // Permission select
-    if (customId.startsWith('setup_perm_')) {
-      const targetGuildId = customId.replace('setup_perm_', '');
-      if (interaction.user.id !== interaction.guild?.ownerId) {
-        return interaction.reply({ content: '🚫 هذا الإعداد للأونر فقط.', ephemeral: true });
-      }
-      const newPerm = interaction.values[0];
-      setCommandPermission(targetGuildId, newPerm);
-      addLog(targetGuildId, 'SETUP_PERM_CHANGED', `تغيير الصلاحية إلى: ${newPerm}`);
+    if (id.startsWith('setup_perm_')) {
+      const tGid = id.replace('setup_perm_', '');
+      if (interaction.user.id !== interaction.guild?.ownerId)
+        return interaction.reply({ content: '🚫 للأونر فقط.', ephemeral: true });
+      setCommandPermission(tGid, interaction.values[0]);
+      addLog(tGid, 'SETUP_PERM_CHANGED', `تغيير الصلاحية: ${interaction.values[0]}`);
       await interaction.deferUpdate();
-      const server = getServer(targetGuildId);
-      if (server?.setup_channel_id) {
-        const ch = interaction.guild?.channels.cache.get(server.setup_channel_id);
-        if (ch) await sendSettingsPanel(ch, targetGuildId);
+      const s = getServer(tGid);
+      if (s?.setup_channel_id) {
+        const ch = interaction.guild?.channels.cache.get(s.setup_channel_id);
+        if (ch) await sendSettingsPanel(ch, tGid);
       }
       return;
     }
 
-    // Interval select
-    if (customId.startsWith('setup_interval_')) {
-      const targetGuildId = customId.replace('setup_interval_', '');
-      if (interaction.user.id !== interaction.guild?.ownerId) {
-        return interaction.reply({ content: '🚫 هذا الإعداد للأونر فقط.', ephemeral: true });
-      }
-      if (!isPaidPlan(targetGuildId)) {
-        return interaction.reply({ content: '🔒 هذا الإعداد متاح للخطة المدفوعة فقط.', ephemeral: true });
-      }
-      const minutes = Number(interaction.values[0]);
-      setHereDefaultInterval(targetGuildId, minutes);
-      addLog(targetGuildId, 'SETUP_INTERVAL_CHANGED', `تغيير الفترة الافتراضية إلى: ${minutes} دقيقة`);
+    if (id.startsWith('setup_interval_')) {
+      const tGid = id.replace('setup_interval_', '');
+      if (interaction.user.id !== interaction.guild?.ownerId)
+        return interaction.reply({ content: '🚫 للأونر فقط.', ephemeral: true });
+      if (!isPaidPlan(tGid))
+        return interaction.reply({ content: '🔒 يحتاج توكن مدفوع.', ephemeral: true });
+      setHereDefaultInterval(tGid, Number(interaction.values[0]));
+      addLog(tGid, 'SETUP_INTERVAL_CHANGED', `تغيير الفترة الافتراضية: ${interaction.values[0]} دقيقة`);
       await interaction.deferUpdate();
-      const server = getServer(targetGuildId);
-      if (server?.setup_channel_id) {
-        const ch = interaction.guild?.channels.cache.get(server.setup_channel_id);
-        if (ch) await sendSettingsPanel(ch, targetGuildId);
+      const s = getServer(tGid);
+      if (s?.setup_channel_id) {
+        const ch = interaction.guild?.channels.cache.get(s.setup_channel_id);
+        if (ch) await sendSettingsPanel(ch, tGid);
       }
       return;
     }
-
     return;
   }
 
@@ -395,16 +341,12 @@ client.on('interactionCreate', async interaction => {
   const { commandName } = interaction;
   updateLastSeen(guildId);
 
-  // ── /setup ─────────────────────────────────────────────────────────
+  // ── /setup ──────────────────────────────────────────────────
   if (commandName === 'setup') {
-    if (interaction.user.id !== interaction.guild?.ownerId) {
+    if (interaction.user.id !== interaction.guild?.ownerId)
       return interaction.reply({ content: '🚫 أمر /setup للأونر فقط.', ephemeral: true });
-    }
     await interaction.deferReply({ ephemeral: true });
-
     const server = getServer(guildId);
-
-    // Check if setup channel already exists
     if (server?.setup_channel_id) {
       const existing = interaction.guild.channels.cache.get(server.setup_channel_id);
       if (existing) {
@@ -412,7 +354,6 @@ client.on('interactionCreate', async interaction => {
         return interaction.editReply(`✅ تم تحديث روم الإعدادات: ${existing}`);
       }
     }
-
     try {
       const owner = await interaction.guild.fetchOwner();
       const setupChannel = await interaction.guild.channels.create({
@@ -421,103 +362,91 @@ client.on('interactionCreate', async interaction => {
         topic: 'إعدادات البوت — للأونر فقط',
         permissionOverwrites: [
           { id: interaction.guild.roles.everyone, deny: [PermissionFlagsBits.ViewChannel] },
-          {
-            id: owner.id,
-            allow: [
-              PermissionFlagsBits.ViewChannel,
-              PermissionFlagsBits.SendMessages,
-              PermissionFlagsBits.ReadMessageHistory,
-            ],
-          },
-          {
-            id: client.user.id,
-            allow: [
-              PermissionFlagsBits.ViewChannel,
-              PermissionFlagsBits.SendMessages,
-              PermissionFlagsBits.ManageMessages,
-            ],
-          },
+          { id: owner.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
+          { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages] },
         ],
       });
-
       setSetupChannel(guildId, setupChannel.id);
-      addLog(guildId, 'SETUP_CHANNEL_CREATED', `تم إنشاء روم الإعدادات: ${setupChannel.id}`);
+      addLog(guildId, 'SETUP_CHANNEL_CREATED', `${setupChannel.id}`);
       await sendSettingsPanel(setupChannel, guildId);
       return interaction.editReply(`✅ تم إنشاء روم الإعدادات: ${setupChannel}`);
     } catch (err) {
       console.error('❌ خطأ في /setup:', err.message);
-      return interaction.editReply('❌ فشل إنشاء روم الإعدادات. تأكد أن البوت يملك صلاحية إنشاء روم.');
+      return interaction.editReply('❌ فشل إنشاء الروم. تأكد من صلاحيات البوت.');
     }
   }
 
-  // ── /active ────────────────────────────────────────────────────────
+  // ── /active ─────────────────────────────────────────────────
   if (commandName === 'active') {
     const tokenValue = interaction.options.getString('token').trim();
     await interaction.deferReply({ ephemeral: true });
     const tokenRow = getTokenByValue(tokenValue);
     if (!tokenRow) return interaction.editReply('❌ التوكن غير صحيح أو معطّل.');
     if (new Date(tokenRow.expires_at) <= new Date()) return interaction.editReply('❌ انتهت صلاحية التوكن.');
-    const activateResult = activateToken(tokenRow.id, guildId);
-    if (!activateResult.ok) return interaction.editReply(`❌ ${activateResult.error}`);
+    const result = activateToken(tokenRow.id, guildId);
+    if (!result.ok) return interaction.editReply(`❌ ${result.error}`);
     addLog(guildId, 'TOKEN_ACTIVATED', `تم تفعيل التوكن من ${interaction.user.tag}`);
     const expiresDate = new Date(tokenRow.expires_at).toLocaleDateString('ar-SA');
     const limits = [];
     if (tokenRow.here_min_interval > 0) limits.push(`⏱ حد /here: ${tokenRow.here_min_interval} دقيقة`);
     if (tokenRow.steam_limit > 0) limits.push(`🔍 حد /steam: ${tokenRow.steam_limit} استخدام`);
-    const adNote = tokenRow.is_free_tier ? '\n📢 سيُرفق إعلان مع كل حساب Steam.' : '\n✅ بدون إعلانات.';
     await interaction.editReply(
-      `✅ **تم تفعيل البوت بنجاح!**\n⏰ ينتهي: ${expiresDate}\n` +
-      (limits.length ? limits.join('\n') + '\n' : '') + adNote +
-      `\nيمكنك الآن استخدام \`/steam\` و \`/here\``
+      `✅ **تم تفعيل البوت!**\n⏰ ينتهي: ${expiresDate}\n` +
+      (limits.length ? limits.join('\n') + '\n' : '') +
+      (tokenRow.is_free_tier ? '📢 سيُرفق إعلان مع كل حساب Steam.' : '✅ بدون إعلانات.')
     );
-    // Refresh settings panel if exists
-    const server = getServer(guildId);
-    if (server?.dashboard_channel_id) {
-      const dash = interaction.guild?.channels.cache.get(server.dashboard_channel_id);
-      await dash?.send(`✅ تم تفعيل التوكن بواسطة **${interaction.user.tag}** | ⏰ ينتهي: ${expiresDate}`);
+    const s = getServer(guildId);
+    if (s?.dashboard_channel_id) {
+      interaction.guild?.channels.cache.get(s.dashboard_channel_id)
+        ?.send(`✅ تم تفعيل التوكن بواسطة **${interaction.user.tag}** | ⏰ ينتهي: ${expiresDate}`);
     }
-    if (server?.setup_channel_id) {
-      const setupCh = interaction.guild?.channels.cache.get(server.setup_channel_id);
-      if (setupCh) await sendSettingsPanel(setupCh, guildId);
+    if (s?.setup_channel_id) {
+      const ch = interaction.guild?.channels.cache.get(s.setup_channel_id);
+      if (ch) await sendSettingsPanel(ch, guildId);
     }
     return;
   }
 
-  // ── Authorization check ────────────────────────────────────────────
+  // ── Authorization ────────────────────────────────────────────
   if (!isServerAuthorized(guildId)) {
     const server = getServer(guildId);
-    const expiredFree = server?.free_tier_expires_at && new Date(server.free_tier_expires_at) <= new Date();
+    const expired = server?.free_tier_expires_at && new Date(server.free_tier_expires_at) <= new Date();
     return interaction.reply({
-      content: expiredFree
-        ? `⏰ **انتهت الفترة المجانية.**\nاستخدم \`/active TOKEN\` للاستمرار.\n🔗 ${AD_INVITE}`
-        : `🔒 البوت غير مفعّل.\nاستخدم \`/active TOKEN\` للتفعيل.\n🔗 ${AD_INVITE}`,
+      content: expired
+        ? `⏰ **انتهت الفترة المجانية.**\nاستخدم \`/active TOKEN\` للاستمرار.\n🔗 ${adInvite()}`
+        : `🔒 البوت غير مفعّل.\nاستخدم \`/active TOKEN\`.\n🔗 ${adInvite()}`,
       ephemeral: true,
     });
   }
 
-  if (!(await canUseCommands(interaction))) {
-    return interaction.reply({ content: '🚫 ليس لديك صلاحية استخدام الأوامر.', ephemeral: true });
-  }
+  if (!(await canUseCommands(interaction)))
+    return interaction.reply({ content: '🚫 ليس لديك صلاحية.', ephemeral: true });
 
-  // ── /steam ─────────────────────────────────────────────────────────
+  // ── /steam ───────────────────────────────────────────────────
   if (commandName === 'steam') {
     const gameName = interaction.options.getString('game').trim();
-    if (gameName.length < 2) return interaction.reply({ content: '❌ اكتب اسم اللعبة صح.', ephemeral: true });
+    if (gameName.length < 2)
+      return interaction.reply({ content: '❌ اكتب اسم اللعبة صح.', ephemeral: true });
 
-    const { limit, uses } = getSteamLimitInfo(guildId);
+    const { limit, uses, source } = getSteamLimitInfo(guildId);
     if (limit > 0 && uses >= limit) {
       return interaction.reply({
-        content: `❌ **استنفذت الحد المسموح لـ /steam** (${limit} استخدام).\nتواصل مع صاحب البوت للحصول على توكن جديد.`,
+        content: `❌ **استنفذت الحد المسموح لـ /steam** (${limit} استخدام).\nتواصل مع صاحب البوت للحصول على توكن.\n🔗 ${adInvite()}`,
         ephemeral: true,
       });
     }
-    if (limit > 0) incrementSteamUses(guildId);
 
     await interaction.deferReply();
     try {
       const result = await searchGame(gameName);
-      if (!result) return interaction.editReply(`❌ ما لقيت أي حساب لـ **${gameName}** بعد 3 محاولات.`);
-      addLog(guildId, 'STEAM_SEARCH', `بحث عن: ${gameName} من ${interaction.user.tag}`);
+      if (!result)
+        return interaction.editReply(`❌ ما لقيت حساب لـ **${gameName}** بعد 3 محاولات.`);
+
+      if (source === 'token') incrementSteamUses(guildId);
+      else incrementFreeTierSteamUses(guildId);
+
+      addLog(guildId, 'STEAM_SEARCH', `بحث: ${gameName} من ${interaction.user.tag}`);
+
       if (result.length > 2000) {
         const chunks = splitMessage(result, 1900);
         await interaction.editReply({ content: chunks[0] });
@@ -525,11 +454,12 @@ client.on('interactionCreate', async interaction => {
       } else {
         await interaction.editReply({ content: result });
       }
+
       if (shouldSendAd(guildId)) {
         try {
-          const adMsg = await interaction.channel.send(
-            `📢 **هذه الحسابات مقدمة مجاناً من بوتنا**\n🔗 **انضم لسيرفرنا للمزيد:** ${AD_INVITE}`
-          );
+          const adTemplate = getSetting('ad_message', '📢 **هذه الحسابات مجانية من بوتنا**\n🔗 {invite}');
+          const adText = adTemplate.replace(/\{invite\}/g, adInvite());
+          const adMsg = await interaction.channel.send(adText);
           trackedAdMessages.set(adMsg.id, guildId);
         } catch {}
       }
@@ -540,19 +470,18 @@ client.on('interactionCreate', async interaction => {
     return;
   }
 
-  // ── /here ──────────────────────────────────────────────────────────
+  // ── /here ────────────────────────────────────────────────────
   if (commandName === 'here') {
     const server = getServer(guildId);
     const providedMin = interaction.options.getInteger('min');
     const defaultMin  = server?.here_default_interval || 0;
-    const minutes = providedMin || defaultMin;
+    const minutes     = providedMin || defaultMin;
 
     if (!minutes || minutes < 1) {
       return interaction.reply({
         content:
-          '❌ يجب تحديد الفترة الزمنية.\n' +
-          'مثال: `/here 15`\n' +
-          (isPaidPlan(guildId) ? 'أو قم بضبط الفترة الافتراضية من روم الإعدادات (/setup).' : ''),
+          '❌ يجب تحديد الفترة الزمنية.\nمثال: `/here 15`\n' +
+          (isPaidPlan(guildId) ? 'أو اضبط الفترة الافتراضية من `/setup`.' : ''),
         ephemeral: true,
       });
     }
@@ -560,7 +489,7 @@ client.on('interactionCreate', async interaction => {
     const hereMin = getHereMinInterval(guildId);
     if (hereMin > 0 && minutes < hereMin) {
       return interaction.reply({
-        content: `❌ الحد الأدنى للفترة في توكنك هو **${hereMin} دقيقة**.`,
+        content: `❌ الحد الأدنى للفترة هو **${hereMin} دقيقة**.`,
         ephemeral: true,
       });
     }
@@ -569,10 +498,10 @@ client.on('interactionCreate', async interaction => {
     try {
       const sendAd = shouldSendAd(guildId);
       await startScheduler(interaction.channel, minutes, guildId, sendAd);
-      addLog(guildId, 'SCHEDULER_START', `بدأ النشر التلقائي كل ${minutes} دقيقة`);
-      const adNote = sendAd ? '\n📢 سيُرفق إعلان مع كل نشر.' : '';
+      addLog(guildId, 'SCHEDULER_START', `نشر تلقائي كل ${minutes} دقيقة`);
       await interaction.editReply(
-        `✅ البوت سينشر حساب Steam مع مقطع TikTok كل **${minutes}** دقيقة.` + adNote
+        `✅ البوت سينشر حساب Steam كل **${minutes}** دقيقة.` +
+        (sendAd ? '\n📢 سيُرفق إعلان مع كل نشر.' : '')
       );
     } catch (err) {
       console.error('❌ خطأ في /here:', err.message);
@@ -581,14 +510,14 @@ client.on('interactionCreate', async interaction => {
     return;
   }
 
-  // ── /stophere ──────────────────────────────────────────────────────
+  // ── /stophere ────────────────────────────────────────────────
   if (commandName === 'stophere') {
     const stopped = stopScheduler(interaction.channel.id);
     if (stopped) {
-      addLog(guildId, 'SCHEDULER_STOP', `أُوقف النشر التلقائي من ${interaction.user.tag}`);
+      addLog(guildId, 'SCHEDULER_STOP', `أوقف النشر ${interaction.user.tag}`);
       await interaction.reply({ content: '✅ تم إيقاف النشر التلقائي.', ephemeral: true });
     } else {
-      await interaction.reply({ content: '⚠️ ما في نشر تلقائي شغّال في هذا الروم.', ephemeral: true });
+      await interaction.reply({ content: '⚠️ ما في نشر تلقائي شغّال هنا.', ephemeral: true });
     }
     return;
   }
