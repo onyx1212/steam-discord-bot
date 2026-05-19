@@ -15,20 +15,24 @@ import {
   setDashboardChannel,
   getServer,
   isServerAuthorized,
-  isFreeTierServer,
+  isFreeTierActive,
   addLog,
   getTokenByValue,
-  getActiveToken,
+  getServerToken,
   activateToken,
   incrementWarning,
   incrementSteamUses,
   setServerActive,
   isUserAllowed,
   updateLastSeen,
+  autoActivateFreeTier,
+  getSteamLimitInfo,
+  getHereMinInterval,
 } from './db.js';
 
 const token = process.env.DISCORD_TOKEN;
 export const BOT_OWNER_ID = process.env.BOT_OWNER_DISCORD_ID || '';
+const AD_INVITE = process.env.BOT_OWNER_SERVER_INVITE || 'https://discord.gg/example';
 
 if (!token) { console.error('❌ DISCORD_TOKEN غير موجود'); process.exit(1); }
 if (!process.env.GROQ_API_KEY) { console.error('❌ GROQ_API_KEY غير موجود'); process.exit(1); }
@@ -54,7 +58,7 @@ const commands = [
   new SlashCommandBuilder()
     .setName('active')
     .setDescription('تفعيل البوت باستخدام التوكن')
-    .addStringOption(o => o.setName('token').setDescription('التوكن المُرسَل لروم الداشبورد').setRequired(true)),
+    .addStringOption(o => o.setName('token').setDescription('التوكن').setRequired(true)),
 ].map(cmd => cmd.toJSON());
 
 async function canUseCommands(interaction) {
@@ -86,7 +90,8 @@ client.once('clientReady', async () => {
 client.on('guildCreate', async guild => {
   console.log(`📥 انضم للسيرفر: ${guild.name} (${guild.id})`);
   upsertServer(guild.id, guild.name, guild.icon);
-  addLog(guild.id, 'BOT_JOINED', `انضم البوت لسيرفر ${guild.name}`);
+  const freeTierExpiry = autoActivateFreeTier(guild.id, 2);
+  addLog(guild.id, 'BOT_JOINED', `انضم البوت لسيرفر ${guild.name} — free tier لمدة يومين`);
   try {
     const owner = await guild.fetchOwner();
     const dashChannel = await guild.channels.create({
@@ -103,14 +108,17 @@ client.on('guildCreate', async guild => {
       ],
     });
     setDashboardChannel(guild.id, dashChannel.id);
+    const expiryDate = new Date(freeTierExpiry).toLocaleDateString('ar-SA');
     await dashChannel.send(
       `👋 مرحباً **${owner.user.username}**!\n\n` +
-      `🤖 البوت وصل لسيرفرك. للبدء تحتاج **توكن تفعيل** من صاحب البوت.\n\n` +
-      `📋 **الأوامر المتاحة بعد التفعيل:**\n` +
+      `🎉 **تم تفعيل البوت تلقائياً لمدة يومين مجاناً** (ينتهي: ${expiryDate})\n\n` +
+      `📋 **الأوامر المتاحة الآن:**\n` +
       `\`/steam <لعبة>\` — ابحث عن حساب Steam\n` +
       `\`/here <دقائق>\` — نشر تلقائي مع فيديو TikTok\n` +
       `\`/stophere\` — إيقاف النشر التلقائي\n\n` +
-      `🔑 **للتفعيل:** استخدم الأمر:\n\`/active TOKEN_HERE\``
+      `⚠️ **بعد انتهاء الفترة المجانية** ستحتاج توكن للاستمرار.\n` +
+      `🔑 للتفعيل استخدم: \`/active TOKEN_HERE\`\n\n` +
+      `📢 ملاحظة: سيُرفق إعلان مع كل حساب Steam يُنشر.`
     );
   } catch (err) {
     console.error(`❌ خطأ في إعداد سيرفر ${guild.name}:`, err.message);
@@ -163,7 +171,7 @@ client.on('interactionCreate', async interaction => {
   const { commandName, guildId } = interaction;
   if (!guildId) return;
 
-  updateLastSeen(guildId).catch(() => {});
+  updateLastSeen(guildId);
 
   // ── /active ────────────────────────────────────────────────────────
   if (commandName === 'active') {
@@ -171,33 +179,35 @@ client.on('interactionCreate', async interaction => {
     await interaction.deferReply({ ephemeral: true });
     const tokenRow = getTokenByValue(tokenValue);
     if (!tokenRow) return interaction.editReply('❌ التوكن غير صحيح.');
-    if (tokenRow.server_id !== guildId) return interaction.editReply('❌ هذا التوكن غير مخصص لهذا السيرفر.');
     if (new Date(tokenRow.expires_at) <= new Date()) return interaction.editReply('❌ انتهت صلاحية التوكن. اطلب توكناً جديداً.');
     activateToken(tokenRow.id, guildId);
     addLog(guildId, 'TOKEN_ACTIVATED', `تم تفعيل التوكن من ${interaction.user.tag}`);
-    const tierLabel = tokenRow.is_free_tier ? '🆓 مجاني (إعلانات)' : '💎 مميز';
     const expiresDate = new Date(tokenRow.expires_at).toLocaleDateString('ar-SA');
     const limits = [];
     if (tokenRow.here_min_interval > 0) limits.push(`⏱ حد /here: ${tokenRow.here_min_interval} دقيقة`);
     if (tokenRow.steam_limit > 0) limits.push(`🔍 حد /steam: ${tokenRow.steam_limit} استخدام`);
     await interaction.editReply(
       `✅ **تم تفعيل البوت بنجاح!**\n` +
-      `📋 النوع: ${tierLabel} | ⏰ ينتهي: ${expiresDate}\n` +
+      `⏰ ينتهي: ${expiresDate}\n` +
       (limits.length ? limits.join('\n') + '\n' : '') +
       `\nيمكنك الآن استخدام \`/steam\` و \`/here\``
     );
     const server = getServer(guildId);
     if (server?.dashboard_channel_id) {
       const dash = interaction.guild?.channels.cache.get(server.dashboard_channel_id);
-      await dash?.send(`✅ تم تفعيل البوت بواسطة **${interaction.user.tag}** | ${tierLabel} | ينتهي: ${expiresDate}`);
+      await dash?.send(`✅ تم تفعيل التوكن بواسطة **${interaction.user.tag}** | ⏰ ينتهي: ${expiresDate}`);
     }
     return;
   }
 
   // ── Authorization check ────────────────────────────────────────────
   if (!isServerAuthorized(guildId)) {
+    const server = getServer(guildId);
+    const expiredFree = server?.free_tier_expires_at && new Date(server.free_tier_expires_at) <= new Date();
     return interaction.reply({
-      content: '🔒 البوت غير مفعّل.\nاستخدم `/active TOKEN` بعد الحصول على توكن من صاحب البوت.',
+      content: expiredFree
+        ? `⏰ **انتهت الفترة المجانية.**\nاستخدم \`/active TOKEN\` للاستمرار. تواصل مع صاحب البوت للحصول على توكن.`
+        : `🔒 البوت غير مفعّل.\nاستخدم \`/active TOKEN\` بعد الحصول على توكن من صاحب البوت.`,
       ephemeral: true,
     });
   }
@@ -211,18 +221,16 @@ client.on('interactionCreate', async interaction => {
     const gameName = interaction.options.getString('game').trim();
     if (gameName.length < 2) return interaction.reply({ content: '❌ اكتب اسم اللعبة صح.', ephemeral: true });
 
-    const activeToken = getActiveToken(guildId);
-    if (activeToken && activeToken.steam_limit > 0) {
-      if (activeToken.steam_uses >= activeToken.steam_limit) {
-        return interaction.reply({
-          content:
-            `❌ **استنفذت الحد المسموح لـ /steam** (${activeToken.steam_limit} استخدام).\n` +
-            `تواصل مع صاحب البوت للحصول على توكن جديد.`,
-          ephemeral: true,
-        });
-      }
-      incrementSteamUses(activeToken.id);
+    const { limit, uses } = getSteamLimitInfo(guildId);
+    if (limit > 0 && uses >= limit) {
+      return interaction.reply({
+        content:
+          `❌ **استنفذت الحد المسموح لـ /steam** (${limit} استخدام).\n` +
+          `تواصل مع صاحب البوت للحصول على توكن جديد.`,
+        ephemeral: true,
+      });
     }
+    if (limit > 0) incrementSteamUses(guildId);
 
     await interaction.deferReply();
     try {
@@ -236,6 +244,15 @@ client.on('interactionCreate', async interaction => {
       } else {
         await interaction.editReply({ content: result });
       }
+      // Always send ad after steam result
+      try {
+        const channel = interaction.channel;
+        const adText =
+          `📢 **هذه الحسابات مقدمة مجاناً من بوتنا**\n` +
+          `🔗 **انضم لسيرفرنا للمزيد:** ${AD_INVITE}`;
+        const adMsg = await channel.send(adText);
+        trackedAdMessages.set(adMsg.id, guildId);
+      } catch {}
     } catch (err) {
       console.error('❌ خطأ في البحث:', err.message);
       try { await interaction.editReply('❌ صار خطأ أثناء البحث.'); } catch {}
@@ -245,21 +262,20 @@ client.on('interactionCreate', async interaction => {
   // ── /here ──────────────────────────────────────────────────────────
   if (commandName === 'here') {
     const minutes = interaction.options.getInteger('min');
-    const activeToken = getActiveToken(guildId);
-    if (activeToken && activeToken.here_min_interval > 0 && minutes < activeToken.here_min_interval) {
+    const hereMin = getHereMinInterval(guildId);
+    if (hereMin > 0 && minutes < hereMin) {
       return interaction.reply({
-        content: `❌ الحد الأدنى للفترة في توكنك هو **${activeToken.here_min_interval} دقيقة**.\nاختر قيمة أكبر من أو تساوي ${activeToken.here_min_interval}.`,
+        content: `❌ الحد الأدنى للفترة في توكنك هو **${hereMin} دقيقة**.\nاختر قيمة أكبر من أو تساوي ${hereMin}.`,
         ephemeral: true,
       });
     }
     await interaction.deferReply({ ephemeral: true });
     try {
-      const freeTier = isFreeTierServer(guildId);
-      await startScheduler(interaction.channel, minutes, guildId, freeTier);
+      await startScheduler(interaction.channel, minutes, guildId);
       addLog(guildId, 'SCHEDULER_START', `بدأ النشر التلقائي كل ${minutes} دقيقة`);
       await interaction.editReply(
-        `✅ البوت سينشر حساب Steam مع مقطع TikTok كل **${minutes}** دقيقة.` +
-        (freeTier ? '\n🆓 النسخة المجانية: سيُرفق إعلان مع كل نشر.' : '')
+        `✅ البوت سينشر حساب Steam مع مقطع TikTok كل **${minutes}** دقيقة.\n` +
+        `📢 سيُرفق إعلان مع كل نشر.`
       );
     } catch (err) {
       console.error('❌ خطأ في /here:', err.message);
