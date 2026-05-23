@@ -700,8 +700,6 @@ client.on('interactionCreate', async interaction => {
     }
     return;
   }
-});
-
     // ── /manage-perms ────────────────────────────────────────────
     if (commandName === 'manage-perms') {
       if (interaction.user.id !== interaction.guild?.ownerId)
@@ -728,8 +726,9 @@ client.on('interactionCreate', async interaction => {
         return interaction.editReply('❌ صار خطأ، حاول مرة ثانية.');
       }
     }
-
   
+});
+
 client.on('error', err => console.error('❌ Discord client error:', err.message));
 process.on('unhandledRejection', r => console.error('❌ unhandledRejection:', r));
 process.on('uncaughtException', err => console.error('❌ uncaughtException:', err.message));
