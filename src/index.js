@@ -11,7 +11,7 @@ import {
   EmbedBuilder,
   UserSelectMenuBuilder,
   RoleSelectMenuBuilder,
-}} from 'discord.js';
+} from 'discord.js';
 import { searchGame } from './search.js';
 import { startScheduler, stopScheduler, trackedAdMessages } from './scheduler.js';
 import { startDashboard } from './dashboard.js';
@@ -153,7 +153,7 @@ function permLabel(p) {
           .setPlaceholder('❌ اختر مستخدماً لإزالته')
           .setMinValues(1).setMaxValues(1)
           .addOptions(allowedUsers.slice(0, 25).map(u => ({
-            label: `إزالة مستخدم: ${u.user_id}`,
+            label: `إزالة: ${u.user_id}`,
             value: u.user_id,
           })))
       ));
@@ -426,8 +426,9 @@ client.on('interactionCreate', async interaction => {
         if (ch) await sendSettingsPanel(ch, tGid);
       }
       return;
-    }
-    if (id.startsWith('setup_remove_user_')) {
+      }
+
+      if (id.startsWith('setup_remove_user_')) {
         const tGid = id.replace('setup_remove_user_', '');
         if (interaction.user.id !== interaction.guild?.ownerId)
           return interaction.reply({ content: '🚫 للأونر فقط.', ephemeral: true });
