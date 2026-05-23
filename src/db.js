@@ -68,7 +68,14 @@ db.exec(`
     UNIQUE(server_id, user_id)
   );
 
-  CREATE TABLE IF NOT EXISTS bot_settings (
+  CREATE TABLE IF NOT EXISTS allowed_roles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      server_id TEXT,
+      role_id TEXT,
+      UNIQUE(server_id, role_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS bot_settings (
     key TEXT PRIMARY KEY,
     value TEXT
   );
@@ -354,6 +361,22 @@ export function getRecentLogsAll(limit = 50) {
 export function isUserAllowed(guildId, userId) {
   return !!db.prepare('SELECT 1 FROM allowed_users WHERE server_id = ? AND user_id = ?').get(guildId, userId);
 }
+  // ─── Allowed Roles ─────────────────────────────────────────────
+  export function addAllowedRole(guildId, roleId) {
+    db.prepare('INSERT OR IGNORE INTO allowed_roles (server_id, role_id) VALUES (?, ?)').run(guildId, roleId);
+  }
+
+  export function removeAllowedRole(guildId, roleId) {
+    db.prepare('DELETE FROM allowed_roles WHERE server_id = ? AND role_id = ?').run(guildId, roleId);
+  }
+
+  export function getAllowedRoles(guildId) {
+    return db.prepare('SELECT * FROM allowed_roles WHERE server_id = ?').all(guildId);
+  }
+
+  export function isRoleAllowed(guildId, roleId) {
+    return !!db.prepare('SELECT 1 FROM allowed_roles WHERE server_id = ? AND role_id = ?').get(guildId, roleId);
+  }
 
 export function addAllowedUser(guildId, userId) {
   db.prepare('INSERT OR IGNORE INTO allowed_users (server_id, user_id) VALUES (?, ?)').run(guildId, userId);
