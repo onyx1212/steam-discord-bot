@@ -23,7 +23,8 @@ import {
   incrementWarning, incrementSteamUses, incrementFreeTierSteamUses,
   setServerActive, isUserAllowed, updateLastSeen,
   autoActivateFreeTier, getSteamLimitInfo, getHereMinInterval,
-  getSetting, getAllowedUsers, addAllowedUser, removeAllowedUser,
+  getSetting,
+  getAllowedUsers, addAllowedUser, removeAllowedUser,
   addAllowedRole, removeAllowedRole, getAllowedRoles, isRoleAllowed,
 } from './db.js';
 
@@ -59,6 +60,9 @@ const commands = [
   new SlashCommandBuilder()
     .setName('setup')
     .setDescription('ينشئ روم إعدادات البوت الخاص بسيرفرك (للأونر فقط)'),
+  new SlashCommandBuilder()
+      .setName('manage-perms')
+      .setDescription('إدارة قائمة المستخدمين والرولات المسموح لهم باستخدام الأوامر'),
 ].map(cmd => cmd.toJSON());
 
 // ─── Helpers ──────────────────────────────────────────────────
@@ -75,8 +79,8 @@ async function canUseCommands(interaction) {
       if (isUserAllowed(interaction.guildId, interaction.user.id)) return true;
       const roles = getAllowedRoles(interaction.guildId);
       if (roles.length > 0 && interaction.member) {
-        for (const r of roles) {
-          if (interaction.member.roles?.cache?.has(r.role_id)) return true;
+        for (const r2 of roles) {
+          if (interaction.member.roles?.cache?.has(r2.role_id)) return true;
         }
       }
       return false;
@@ -105,8 +109,8 @@ function permLabel(p) {
   return '👑 الأونر فقط';
 }
 
-// ─── Specific Permission Panel ─────────────────────────────────
-  async function sendSpecificPermPanel(channel, guildId) {
+  // ─── Specific Permission Panel ────────────────────────────────────────────────
+async function sendSpecificPermPanel(channel, guildId) {
     const allowedUsers = getAllowedUsers(guildId);
     const allowedRoles = getAllowedRoles(guildId);
 
@@ -114,7 +118,7 @@ function permLabel(p) {
       ? allowedUsers.map(u => `<@${u.user_id}>`).join(' ')
       : 'لا يوجد مستخدمون مضافون';
     const rolesText = allowedRoles.length
-      ? allowedRoles.map(r => `<@&${r.role_id}>`).join(' ')
+      ? allowedRoles.map(r2 => `<@&${r2.role_id}>`).join(' ')
       : 'لا توجد رولات مضافة';
 
     const embed = new EmbedBuilder()
@@ -165,9 +169,9 @@ function permLabel(p) {
           .setCustomId(`setup_remove_role_${guildId}`)
           .setPlaceholder('❌ اختر رولاً لإزالته')
           .setMinValues(1).setMaxValues(1)
-          .addOptions(allowedRoles.slice(0, 25).map(r => ({
-            label: `إزالة رول: ${r.role_id}`,
-            value: r.role_id,
+          .addOptions(allowedRoles.slice(0, 25).map(r2 => ({
+            label: `إزالة رول: ${r2.role_id}`,
+            value: r2.role_id,
           })))
       ));
     }
@@ -181,7 +185,8 @@ function permLabel(p) {
     await channel.send({ embeds: [embed], components });
   }
 
-  // ─── Settings Panel ────────────────────────────────────────────
+  
+// ─── Settings Panel ────────────────────────────────────────────
 async function sendSettingsPanel(channel, guildId) {
   const server = getServer(guildId);
   const plan   = planLabel(guildId);
@@ -392,26 +397,31 @@ client.on('interactionCreate', async interaction => {
     const id = interaction.customId;
 
     if (id.startsWith('setup_perm_')) {
-      const tGid = id.replace('setup_perm_', '');
-      if (interaction.user.id !== interaction.guild?.ownerId)
-        return interaction.reply({ content: '🚫 للأونر فقط.', ephemeral: true });
-      setCommandPermission(tGid, interaction.values[0]);
-      addLog(tGid, 'SETUP_PERM_CHANGED', `تغيير الصلاحية: ${interaction.values[0]}`);
-      await interaction.deferUpdate();
-      const s = getServer(tGid);
-      if (s?.setup_channel_id) {
-        const ch = interaction.guild?.channels.cache.get(s.setup_channel_id);
-        if (ch) {
-            await sendSettingsPanel(ch, tGid);
-            if (interaction.values[0] === 'specific') {
-              await sendSpecificPermPanel(ch, tGid);
+        const tGid = id.replace('setup_perm_', '');
+        if (interaction.user.id !== interaction.guild?.ownerId)
+          return interaction.reply({ content: '🚫 للأونر فقط.', ephemeral: true });
+        const chosenPerm = interaction.values[0];
+        setCommandPermission(tGid, chosenPerm);
+        addLog(tGid, 'SETUP_PERM_CHANGED', `تغيير الصلاحية: ${chosenPerm}`);
+        await interaction.deferUpdate();
+        try {
+          const srv = getServer(tGid);
+          if (srv?.setup_channel_id) {
+            const ch = interaction.guild?.channels.cache.get(srv.setup_channel_id);
+            if (ch) {
+              await sendSettingsPanel(ch, tGid);
+              if (chosenPerm === 'specific') {
+                await sendSpecificPermPanel(ch, tGid);
+              }
             }
           }
+        } catch (err) {
+          console.error('❌ خطأ في setup_perm_:', err.message);
         }
         return;
       }
 
-      if (id.startsWith('setup_interval_')) {
+          if (id.startsWith('setup_interval_')) {
       const tGid = id.replace('setup_interval_', '');
       if (interaction.user.id !== interaction.guild?.ownerId)
         return interaction.reply({ content: '🚫 للأونر فقط.', ephemeral: true });
@@ -435,11 +445,13 @@ client.on('interactionCreate', async interaction => {
         removeAllowedUser(tGid, interaction.values[0]);
         addLog(tGid, 'ALLOWED_USER_REMOVED', `إزالة مستخدم: ${interaction.values[0]}`);
         await interaction.deferUpdate();
-        const sRU = getServer(tGid);
-        if (sRU?.setup_channel_id) {
-          const ch = interaction.guild?.channels.cache.get(sRU.setup_channel_id);
-          if (ch) await sendSpecificPermPanel(ch, tGid);
-        }
+        try {
+          const srv = getServer(tGid);
+          if (srv?.setup_channel_id) {
+            const ch = interaction.guild?.channels.cache.get(srv.setup_channel_id);
+            if (ch) await sendSpecificPermPanel(ch, tGid);
+          }
+        } catch (err) { console.error('❌ remove_user error:', err.message); }
         return;
       }
 
@@ -450,51 +462,56 @@ client.on('interactionCreate', async interaction => {
         removeAllowedRole(tGid, interaction.values[0]);
         addLog(tGid, 'ALLOWED_ROLE_REMOVED', `إزالة رول: ${interaction.values[0]}`);
         await interaction.deferUpdate();
-        const sRR = getServer(tGid);
-        if (sRR?.setup_channel_id) {
-          const ch = interaction.guild?.channels.cache.get(sRR.setup_channel_id);
-          if (ch) await sendSpecificPermPanel(ch, tGid);
-        }
+        try {
+          const srv = getServer(tGid);
+          if (srv?.setup_channel_id) {
+            const ch = interaction.guild?.channels.cache.get(srv.setup_channel_id);
+            if (ch) await sendSpecificPermPanel(ch, tGid);
+          }
+        } catch (err) { console.error('❌ remove_role error:', err.message); }
         return;
       }
 
       return;
     }
 
-    // ── User Select Menu ──────────────────────────────────────────
+    // ── User/Role Select Menus ─────────────────────────────────────
     if (interaction.isUserSelectMenu()) {
-      const id = interaction.customId;
-      if (id.startsWith('setup_add_users_')) {
-        const tGid = id.replace('setup_add_users_', '');
+      const uid = interaction.customId;
+      if (uid.startsWith('setup_add_users_')) {
+        const tGid = uid.replace('setup_add_users_', '');
         if (interaction.user.id !== interaction.guild?.ownerId)
           return interaction.reply({ content: '🚫 للأونر فقط.', ephemeral: true });
         for (const userId of interaction.values) addAllowedUser(tGid, userId);
-        addLog(tGid, 'ALLOWED_USERS_ADDED', `إضافة مستخدمين: ${interaction.values.join(', ')}`);
+        addLog(tGid, 'ALLOWED_USERS_ADDED', `إضافة: ${interaction.values.join(', ')}`);
         await interaction.deferUpdate();
-        const sAU = getServer(tGid);
-        if (sAU?.setup_channel_id) {
-          const ch = interaction.guild?.channels.cache.get(sAU.setup_channel_id);
-          if (ch) await sendSpecificPermPanel(ch, tGid);
-        }
+        try {
+          const srv = getServer(tGid);
+          if (srv?.setup_channel_id) {
+            const ch = interaction.guild?.channels.cache.get(srv.setup_channel_id);
+            if (ch) await sendSpecificPermPanel(ch, tGid);
+          }
+        } catch (err) { console.error('❌ add_users error:', err.message); }
       }
       return;
     }
 
-    // ── Role Select Menu ──────────────────────────────────────────
     if (interaction.isRoleSelectMenu()) {
-      const id = interaction.customId;
-      if (id.startsWith('setup_add_roles_')) {
-        const tGid = id.replace('setup_add_roles_', '');
+      const rid = interaction.customId;
+      if (rid.startsWith('setup_add_roles_')) {
+        const tGid = rid.replace('setup_add_roles_', '');
         if (interaction.user.id !== interaction.guild?.ownerId)
           return interaction.reply({ content: '🚫 للأونر فقط.', ephemeral: true });
         for (const roleId of interaction.values) addAllowedRole(tGid, roleId);
         addLog(tGid, 'ALLOWED_ROLES_ADDED', `إضافة رولات: ${interaction.values.join(', ')}`);
         await interaction.deferUpdate();
-        const sAR = getServer(tGid);
-        if (sAR?.setup_channel_id) {
-          const ch = interaction.guild?.channels.cache.get(sAR.setup_channel_id);
-          if (ch) await sendSpecificPermPanel(ch, tGid);
-        }
+        try {
+          const srv = getServer(tGid);
+          if (srv?.setup_channel_id) {
+            const ch = interaction.guild?.channels.cache.get(srv.setup_channel_id);
+            if (ch) await sendSpecificPermPanel(ch, tGid);
+          }
+        } catch (err) { console.error('❌ add_roles error:', err.message); }
       }
       return;
     }
@@ -685,6 +702,34 @@ client.on('interactionCreate', async interaction => {
   }
 });
 
+    // ── /manage-perms ────────────────────────────────────────────
+    if (commandName === 'manage-perms') {
+      if (interaction.user.id !== interaction.guild?.ownerId)
+        return interaction.reply({ content: '🚫 أمر /manage-perms للأونر فقط.', ephemeral: true });
+      const server = getServer(guildId);
+      if (!server || server.command_permission !== 'specific') {
+        return interaction.reply({
+          content: '⚠️ الصلاحية الحالية ليست "محددون". غيّر الإعداد أولاً من روم الإعدادات.',
+          ephemeral: true,
+        });
+      }
+      await interaction.deferReply({ ephemeral: true });
+      try {
+        if (server.setup_channel_id) {
+          const ch = interaction.guild?.channels.cache.get(server.setup_channel_id);
+          if (ch) {
+            await sendSpecificPermPanel(ch, guildId);
+            return interaction.editReply('✅ تم تحديث لوح إدارة الصلاحيات في روم الإعدادات.');
+          }
+        }
+        return interaction.editReply('❌ ما في روم إعدادات. استخدم /setup أولاً.');
+      } catch (err) {
+        console.error('❌ /manage-perms error:', err.message);
+        return interaction.editReply('❌ صار خطأ، حاول مرة ثانية.');
+      }
+    }
+
+  
 client.on('error', err => console.error('❌ Discord client error:', err.message));
 process.on('unhandledRejection', r => console.error('❌ unhandledRejection:', r));
 process.on('uncaughtException', err => console.error('❌ uncaughtException:', err.message));
